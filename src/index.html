@@ -1,82 +1,251 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Image Util Results</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Util Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
-    .image-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
+    :root {
+      --primary-color: #4361ee;
+      --secondary-color: #3f37c9;
+      --success-color: #4cc9f0;
+      --warning-color: #f72585;
+      --light-bg: #f8f9fa;
+      --dark-text: #212529;
+      --light-text: #f8f9fa;
+      --border-radius: 12px;
+      --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      --transition: all 0.3s ease;
     }
-    .image-item {
-      border: 1px solid #ddd;
-      padding: 5px;
+
+    body {
+      background-color: #f5f7fb;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--dark-text);
+      padding-bottom: 2rem;
+    }
+
+    .navbar {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      box-shadow: var(--shadow);
+      margin-bottom: 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .navbar-brand {
+      font-weight: 700;
+      font-size: 1.5rem;
+    }
+
+    .card {
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      border: none;
+      margin-bottom: 1.5rem;
+      transition: var(--transition);
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+      background-color: white;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      font-weight: 600;
+      border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+      padding: 1rem 1.5rem;
+    }
+
+    .stats-card {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+    }
+
+    .stats-card .card-header {
+      background: transparent;
+      border: none;
+      color: white;
+    }
+
+    .stat-item {
       text-align: center;
-      flex: 1 1 calc(10% - 10px);
-      min-width: 100px;
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      margin-bottom: 1rem;
+      transition: var(--transition);
     }
+
+    .stat-item:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: scale(1.03);
+    }
+
+    .stat-item .count {
+      font-size: 2.5rem;
+      font-weight: 700;
+      display: block;
+      margin: 0.5rem 0;
+    }
+
+    .stat-item .label {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+
+    .group-card {
+      border-left: 5px solid var(--primary-color);
+    }
+
+    .group-card.duplicate-group {
+      border-left-color: var(--warning-color);
+    }
+
+    .group-card.similar-group {
+      border-left-color: var(--success-color);
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .image-item {
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      background: white;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+      position: relative;
+    }
+
+    .image-item:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+
     .image-item img {
       width: 100%;
-      height: 100px;
-      object-fit: contain;
+      height: 120px;
+      object-fit: cover;
       cursor: pointer;
+      border-top-left-radius: var(--border-radius);
+      border-top-right-radius: var(--border-radius);
     }
-    .similar-group, .duplicate-group {
-      border: 2px solid #007bff;
-      padding: 15px;
-      margin-bottom: 20px;
-      border-radius: 8px;
+
+    .image-info {
+      padding: 0.75rem;
+      font-size: 0.85rem;
     }
-    .unique-images-section {
-      margin-top: 40px;
-      padding: 20px;
-      border-top: 1px solid #eee;
-    }
-    .unique-images-section h2 {
-      margin-bottom: 20px;
-    }
-    .unique-image-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      justify-content: flex-start;
-    }
-    .unique-image-item {
-      flex: 0 0 calc(20% - 20px);
-      min-width: 150px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
+
+    .image-info .file-name {
+      font-weight: 600;
+      white-space: nowrap;
       overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-overflow: ellipsis;
     }
+
+    .image-info .new-name {
+      color: #6c757d;
+      font-size: 0.75rem;
+      margin: 0.25rem 0;
+    }
+
+    .image-info .dimensions {
+      color: #6c757d;
+      font-size: 0.75rem;
+    }
+
+    .recycle-btn {
+      width: 100%;
+      font-size: 0.75rem;
+      padding: 0.25rem;
+      margin-top: 0.5rem;
+    }
+
+    .unique-images-section {
+      margin-top: 2rem;
+    }
+
+    .unique-image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1.5rem;
+      padding: 1rem;
+    }
+
+    .unique-image-item {
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      background: white;
+      box-shadow: var(--shadow);
+      transition: var(--transition);
+    }
+
+    .unique-image-item:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+
     .unique-image-item img {
       width: 100%;
-      height: 150px;
-      object-fit: contain;
+      height: 140px;
+      object-fit: cover;
       cursor: pointer;
     }
-    .unique-image-item .card-body {
-      padding: 10px;
+
+    .unique-image-info {
+      padding: 0.75rem;
     }
-    .unique-image-item .card-text {
-      font-size: 0.9em;
-      margin-bottom: 5px;
+
+    .unique-image-info .file-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.9rem;
     }
-    .unique-image-item .text-muted {
-      font-size: 0.8em;
+
+    .unique-image-info .new-name {
+      color: #6c757d;
+      font-size: 0.75rem;
+      margin: 0.25rem 0;
     }
+
+    .unique-image-info .dimensions {
+      color: #6c757d;
+      font-size: 0.75rem;
+    }
+
+    .unique-image-info .recycle-btn {
+      width: 100%;
+      font-size: 0.75rem;
+      padding: 0.25rem;
+      margin-top: 0.5rem;
+    }
+
     .modal {
       display: none;
       position: fixed;
-      z-index: 1000;
+      z-index: 1050;
       left: 0;
       top: 0;
       width: 100%;
       height: 100%;
       overflow: auto;
-      background-color: rgba(0,0,0,0.9);
+      background-color: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(5px);
     }
+
     .modal-content {
       margin: auto;
       display: block;
@@ -87,87 +256,347 @@
       left: 50%;
       transform: translate(-50%, -50%);
       object-fit: contain;
+      border-radius: var(--border-radius);
     }
+
     .close {
       position: absolute;
-      top: 15px;
+      top: 25px;
       right: 35px;
-      color: #f1f1f1;
+      color: #fff;
       font-size: 40px;
       font-weight: bold;
       cursor: pointer;
+      z-index: 1051;
+      background: rgba(0, 0, 0, 0.3);
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
     }
-    .stats-card {
-      background-color: #f8f9fa;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    .close:hover {
+      background: rgba(255, 255, 255, 0.2);
     }
-    .stats-card h2 {
-      margin-top: 0;
-      color: #333;
+
+    .nav-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: none;
+      padding: 15px 20px;
+      cursor: pointer;
+      border-radius: var(--border-radius);
+      font-size: 1.2rem;
+      transition: var(--transition);
+      z-index: 1051;
+      display: block;
     }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
-      margin-top: 15px;
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
     }
-    .stat-item {
-      background-color: white;
-      border-radius: 6px;
-      padding: 15px;
+
+    #prevBtn {
+      left: 20px;
+    }
+
+    #nextBtn {
+      right: 20px;
+    }
+
+    #caption {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 1.2rem;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px 20px;
+      border-radius: var(--border-radius);
+      max-width: 80%;
       text-align: center;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .stat-item .count {
-      font-size: 2rem;
-      font-weight: bold;
-      color: #007bff;
+
+    #groupInfo {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: white;
+      font-size: 1rem;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 15px;
+      border-radius: var(--border-radius);
     }
-    .stat-item .label {
-      font-size: 0.9rem;
-      color: #666;
+
+    .section-title {
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--primary-color);
+      color: var(--secondary-color);
     }
+
+    .group-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      background: rgba(67, 97, 238, 0.1);
+      border-radius: var(--border-radius);
+      display: inline-block;
+    }
+
+    .duplicate-group .group-title {
+      background: rgba(247, 37, 133, 0.1);
+    }
+
+    .similar-group .group-title {
+      background: rgba(76, 201, 240, 0.1);
+    }
+
     @media (max-width: 768px) {
-      .image-item {
-        flex: 1 1 calc(33.333% - 10px);
+      .image-grid, .unique-image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       }
-      .unique-image-item {
-        flex: 0 0 calc(50% - 20px);
+      
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
       }
+      
+      .nav-btn {
+        padding: 10px 15px;
+        font-size: 1rem;
+      }
+    }
+
+    @media (max-width: 576px) {
       .stats-grid {
         grid-template-columns: 1fr;
       }
+      
+      .image-grid, .unique-image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      }
+    }
+
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 200px;
+    }
+
+    .spinner {
+      width: 3rem;
+      height: 3rem;
+    }
+
+    .toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1060;
+    }
+
+    /* Collapsible sections */
+    .collapsible-header {
+      cursor: pointer;
+      user-select: none;
+      padding: 10px 15px;
+      background-color: #e9ecef;
+      border-radius: var(--border-radius);
+      margin-bottom: 1rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .collapsible-content {
+      display: none;
+    }
+
+    .collapsible-content.show {
+      display: block;
+    }
+
+    .collapsible-icon {
+      transition: transform 0.3s ease;
+    }
+
+    .collapsible-header.active .collapsible-icon {
+      transform: rotate(180deg);
+    }
+
+    /* Search and filter */
+    .search-container {
+      margin-bottom: 1rem;
+    }
+
+    .filter-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+
+    .filter-btn {
+      border-radius: 20px;
+      padding: 5px 15px;
+      font-size: 0.9rem;
+    }
+
+    .filter-btn.active {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    /* Pagination */
+    .pagination-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .pagination {
+      display: flex;
+      list-style: none;
+    }
+
+    .pagination li {
+      margin: 0 5px;
+    }
+
+    .pagination a {
+      display: block;
+      padding: 8px 12px;
+      text-decoration: none;
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      color: var(--primary-color);
+    }
+
+    .pagination a:hover {
+      background-color: #e9ecef;
+    }
+
+    .pagination .active a {
+      background-color: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
     }
   </style>
 </head>
 <body>
+  <nav class="navbar navbar-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">
+        <i class="bi bi-images me-2"></i>Image Util Dashboard
+      </a>
+    </div>
+  </nav>
+
   <div class="container">
     <!-- Statistics Section -->
-    <div class="stats-card">
-      <h2>Image Statistics</h2>
-      <div class="stats-grid" id="stats-grid">
-        <!-- Stats will be rendered here -->
+    <div class="card stats-card">
+      <div class="card-header">
+        <h2 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Image Statistics</h2>
+      </div>
+      <div class="card-body">
+        <div class="row" id="stats-grid">
+          <!-- Stats will be rendered here -->
+          <div class="loading">
+            <div class="spinner-border text-light" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <h1 class="mt-4">Duplicate Image Groups</h1>
-    <div id="duplicate-groups">
-      <!-- Duplicate groups will be rendered here -->
+    <!-- Search and Filter Section -->
+    <div class="search-container">
+      <div class="input-group mb-3">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" id="searchInput" placeholder="Search by filename...">
+      </div>
     </div>
 
-    <h1 class="mt-4">Similar Image Groups</h1>
-    <div id="similar-groups">
-      <!-- Similar groups will be rendered here -->
+    <div class="filter-container">
+      <button class="btn filter-btn active" data-filter="all">All Images</button>
+      <button class="btn filter-btn" data-filter="duplicates">Duplicates</button>
+      <button class="btn filter-btn" data-filter="similar">Similar</button>
+      <button class="btn filter-btn" data-filter="unique">Unique</button>
+    </div>
+
+    <!-- Duplicate Groups Section -->
+    <div class="section-container" id="duplicates-section">
+      <div class="collapsible-header" data-target="duplicates-content">
+        <span>
+          <i class="bi bi-copy me-2"></i>Duplicate Image Groups
+        </span>
+        <i class="bi bi-chevron-down collapsible-icon"></i>
+      </div>
+      <div class="collapsible-content show" id="duplicates-content">
+        <div id="duplicate-groups">
+          <!-- Duplicate groups will be rendered here -->
+          <div class="loading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Similar Groups Section -->
+    <div class="section-container" id="similar-section">
+      <div class="collapsible-header" data-target="similar-content">
+        <span>
+          <i class="bi bi-collection-play me-2"></i>Similar Image Groups
+        </span>
+        <i class="bi bi-chevron-down collapsible-icon"></i>
+      </div>
+      <div class="collapsible-content show" id="similar-content">
+        <div id="similar-groups">
+          <!-- Similar groups will be rendered here -->
+          <div class="loading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Unique Images Section -->
-    <div class="unique-images-section">
-      <h2 id="unique-images-heading">Unique Images</h2>
-      <div class="unique-image-grid" id="unique-images-grid">
-        <!-- Unique images will be rendered here -->
+    <div class="section-container" id="unique-section">
+      <div class="collapsible-header" data-target="unique-content">
+        <span>
+          <i class="bi bi-image me-2"></i>Unique Images
+        </span>
+        <i class="bi bi-chevron-down collapsible-icon"></i>
+      </div>
+      <div class="collapsible-content show" id="unique-content">
+        <div id="unique-images-grid">
+          <!-- Unique images will be rendered here -->
+          <div class="loading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -177,13 +606,28 @@
     <span class="close">&times;</span>
     <img class="modal-content" id="previewImage">
     <div id="caption"></div>
-    <div id="groupInfo" style="position: absolute; top: 60px; left: 20px; color: white; font-size: 16px;"></div>
-    <button id="prevBtn" class="nav-btn" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px; cursor: pointer; display: none;">&lt; Prev</button>
-    <button id="nextBtn" class="nav-btn" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px; cursor: pointer; display: none;">Next &gt;</button>
+    <div id="groupInfo"></div>
+    <button id="prevBtn" class="nav-btn">&lt;</button>
+    <button id="nextBtn" class="nav-btn">&gt;</button>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <!-- Toast for notifications -->
+  <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true" id="notificationToast">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMessage">
+        Operation completed successfully!
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
+    // Global variables to store data
+    let imageData = null;
+    let currentFilter = 'all';
+    let currentSearch = '';
+
     function parseCreateDate(create_date) {
       if (!create_date) {
           return null;
@@ -224,63 +668,189 @@
       return `${yyyy}${MM}${dd}${HH}${mm}${ss}.${sequence}.${extension}`;
     }
 
+    function showToast(message, isSuccess = true) {
+      const toast = document.getElementById('notificationToast');
+      const toastMessage = document.getElementById('toastMessage');
+      
+      toastMessage.textContent = message;
+      toast.className = 'toast align-items-center text-white border-0';
+      toast.classList.add(isSuccess ? 'bg-success' : 'bg-danger');
+      
+      const bsToast = new bootstrap.Toast(toast);
+      bsToast.show();
+    }
+
+    // Initialize collapsible sections
+    function initCollapsible() {
+      const headers = document.querySelectorAll('.collapsible-header');
+      headers.forEach(header => {
+        header.addEventListener('click', function() {
+          const targetId = this.getAttribute('data-target');
+          const content = document.getElementById(targetId);
+          const icon = this.querySelector('.collapsible-icon');
+          
+          this.classList.toggle('active');
+          content.classList.toggle('show');
+          
+          // Update icon rotation
+          if (content.classList.contains('show')) {
+            icon.style.transform = 'rotate(180deg)';
+          } else {
+            icon.style.transform = 'rotate(0deg)';
+          }
+        });
+      });
+    }
+
+    // Initialize filter buttons
+    function initFilters() {
+      const filterButtons = document.querySelectorAll('.filter-btn');
+      filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          // Remove active class from all buttons
+          filterButtons.forEach(btn => btn.classList.remove('active'));
+          
+          // Add active class to clicked button
+          this.classList.add('active');
+          
+          // Update filter and re-render
+          currentFilter = this.getAttribute('data-filter');
+          applyFilters();
+        });
+      });
+      
+      // Initialize search input
+      const searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', function() {
+        currentSearch = this.value.toLowerCase();
+        applyFilters();
+      });
+    }
+
+    // Apply filters to data
+    function applyFilters() {
+      if (!imageData) return;
+      
+      // Filter and render based on current filter and search
+      switch(currentFilter) {
+        case 'all':
+          renderDuplicateGroups(imageData.duplicateGroups);
+          renderSimilarGroups(imageData.similarGroups);
+          renderUniqueImages(imageData.uniqueImages);
+          break;
+        case 'duplicates':
+          renderDuplicateGroups(imageData.duplicateGroups);
+          document.getElementById('similar-content').classList.remove('show');
+          document.getElementById('unique-content').classList.remove('show');
+          break;
+        case 'similar':
+          renderSimilarGroups(imageData.similarGroups);
+          document.getElementById('duplicates-content').classList.remove('show');
+          document.getElementById('unique-content').classList.remove('show');
+          break;
+        case 'unique':
+          renderUniqueImages(imageData.uniqueImages);
+          document.getElementById('duplicates-content').classList.remove('show');
+          document.getElementById('similar-content').classList.remove('show');
+          break;
+      }
+    }
+
     window.onload = async () => {
-      const response = await fetch('/api/images');
-      const data = await response.json();
+      try {
+        const response = await fetch('/api/images');
+        imageData = await response.json();
 
-      renderStats(data);
-      renderDuplicateGroups(data.duplicateGroups);
-      renderSimilarGroups(data.similarGroups);
-      renderUniqueImages(data.uniqueImages);
+        renderStats(imageData);
+        renderDuplicateGroups(imageData.duplicateGroups);
+        renderSimilarGroups(imageData.similarGroups);
+        renderUniqueImages(imageData.uniqueImages);
 
-      setupImagePreview();
+        setupImagePreview();
+        initCollapsible();
+        initFilters();
+      } catch (error) {
+        console.error('Error loading data:', error);
+        showToast('Error loading data. Please refresh the page.', false);
+      }
     };
 
     function renderStats(data) {
       const statsGrid = document.getElementById('stats-grid');
       statsGrid.innerHTML = `
-        <div class="stat-item">
-          <div class="count">${data.totalImages}</div>
-          <div class="label">Total Images</div>
+        <div class="col-md-3 col-sm-6">
+          <div class="stat-item">
+            <i class="bi bi-images fs-1"></i>
+            <span class="count">${data.totalImages}</span>
+            <span class="label">Total Images</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <div class="count">${data.duplicateGroupCount}</div>
-          <div class="label">Duplicate Groups</div>
+        <div class="col-md-3 col-sm-6">
+          <div class="stat-item">
+            <i class="bi bi-copy fs-1"></i>
+            <span class="count">${data.duplicateGroupCount}</span>
+            <span class="label">Duplicate Groups</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <div class="count">${data.similarGroupCount}</div>
-          <div class="label">Similar Groups</div>
+        <div class="col-md-3 col-sm-6">
+          <div class="stat-item">
+            <i class="bi bi-collection-play fs-1"></i>
+            <span class="count">${data.similarGroupCount}</span>
+            <span class="label">Similar Groups</span>
+          </div>
         </div>
-        <div class="stat-item">
-          <div class="count">${data.uniqueImageCount}</div>
-          <div class="label">Unique Images</div>
+        <div class="col-md-3 col-sm-6">
+          <div class="stat-item">
+            <i class="bi bi-image fs-1"></i>
+            <span class="count">${data.uniqueImageCount}</span>
+            <span class="label">Unique Images</span>
+          </div>
         </div>
       `;
     }
 
     function renderDuplicateGroups(groups) {
       const container = document.getElementById('duplicate-groups');
+      
+      if (groups.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No duplicate image groups found.</div>';
+        return;
+      }
+      
       container.innerHTML = groups.map(groupImages => {
         const groupKey = groupImages[0].id;
         return `
-          <div class="duplicate-group" data-group-type="duplicate" data-group-id="${groupKey}">
-            <h5>Group: ${groupKey} (${groupImages.length} images)</h5>
-            <div class="image-grid">
-              ${groupImages.map(d => {
-                const thumbnailSrc = d.thumbnail_path ? `/thumbnails/${d.thumbnail_path.split('/').pop()}` : '';
-                const newName = generateNewName(d);
-                return `
-                <div class="image-item card">
-                  ${thumbnailSrc ? `<img src="${thumbnailSrc}" class="card-img-top" alt="${d.file_name}" data-image-id="${d.id}" data-group-ids="${groupKey}">` : ''}
-                  <div class="card-body">
-                    <p class="card-text">${d.file_name}</p>
-                    <p class="card-text text-muted">${newName}</p>
-                    <p class="card-text text-muted">${d.image_width}x${d.image_height} ${d.is_duplicate ? `Duplicate of ID: ${d.duplicate_of}` : 'Original'}</p>
-                    <button class="btn btn-danger btn-sm" onclick="recycle('${d.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+          <div class="card group-card duplicate-group mb-4">
+            <div class="card-body">
+              <div class="group-title">
+                Group: ${groupKey} (${groupImages.length} images)
+              </div>
+              <div class="image-grid">
+                ${groupImages.map(d => {
+                  const thumbnailSrc = d.thumbnail_path ? `/thumbnails/${d.thumbnail_path.split('/').pop()}` : '';
+                  const newName = generateNewName(d);
+                  const matchesSearch = currentSearch === '' || 
+                    d.file_name.toLowerCase().includes(currentSearch) || 
+                    newName.toLowerCase().includes(currentSearch);
+                  
+                  if (currentFilter !== 'all' && currentFilter !== 'duplicates' && !matchesSearch) return '';
+                  
+                  return `
+                  <div class="image-item">
+                    ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${d.file_name}" data-image-id="${d.id}" data-group-ids="${groupKey}" data-group-type="duplicate">` : 
+                      '<div class="placeholder-image bg-light d-flex align-items-center justify-content-center" style="height:120px;"><i class="bi bi-image text-muted fs-1"></i></div>'}
+                    <div class="image-info">
+                      <div class="file-name" title="${d.file_name}">${d.file_name}</div>
+                      <div class="new-name text-muted" title="${newName}">${newName}</div>
+                      <div class="dimensions">${d.image_width}x${d.image_height} ${d.is_duplicate ? `Duplicate of ID: ${d.duplicate_of}` : 'Original'}</div>
+                      <button class="btn btn-danger btn-sm recycle-btn" onclick="recycle('${d.file_path.replace(/'/g, "\\'")}', this)">
+                        <i class="bi bi-trash me-1"></i>Recycle
+                      </button>
+                    </div>
                   </div>
-                </div>
-              `;
-              }).join('')}
+                `;
+                }).join('')}
+              </div>
             </div>
           </div>
         `;
@@ -289,27 +859,46 @@
 
     function renderSimilarGroups(groups) {
       const container = document.getElementById('similar-groups');
+      
+      if (groups.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No similar image groups found.</div>';
+        return;
+      }
+      
       container.innerHTML = groups.map(groupImages => {
         const groupKey = groupImages.map(i => i.id).sort().join('-');
         return `
-          <div class="similar-group" data-group-type="similar" data-group-id="${groupKey}">
-            <h5>Group: ${groupKey} (${groupImages.length} images)</h5>
-            <div class="image-grid">
-              ${groupImages.map(s => {
-                const thumbnailSrc = s.thumbnail_path ? `/thumbnails/${s.thumbnail_path.split('/').pop()}` : '';
-                const newName = generateNewName(s);
-                return `
-                <div class="image-item card">
-                  ${thumbnailSrc ? `<img src="${thumbnailSrc}" class="card-img-top" alt="${s.file_name}" data-image-id="${s.id}" data-group-ids="${groupKey}">` : ''}
-                  <div class="card-body">
-                    <p class="card-text">${s.file_name}</p>
-                    <p class="card-text text-muted">${newName}</p>
-                    <p class="card-text text-muted">${s.image_width}x${s.image_height}</p>
-                    <button class="btn btn-danger btn-sm" onclick="recycle('${s.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+          <div class="card group-card similar-group mb-4">
+            <div class="card-body">
+              <div class="group-title">
+                Group: ${groupKey} (${groupImages.length} images)
+              </div>
+              <div class="image-grid">
+                ${groupImages.map(s => {
+                  const thumbnailSrc = s.thumbnail_path ? `/thumbnails/${s.thumbnail_path.split('/').pop()}` : '';
+                  const newName = generateNewName(s);
+                  const matchesSearch = currentSearch === '' || 
+                    s.file_name.toLowerCase().includes(currentSearch) || 
+                    newName.toLowerCase().includes(currentSearch);
+                  
+                  if (currentFilter !== 'all' && currentFilter !== 'similar' && !matchesSearch) return '';
+                  
+                  return `
+                  <div class="image-item">
+                    ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${s.file_name}" data-image-id="${s.id}" data-group-ids="${groupKey}" data-group-type="similar">` : 
+                      '<div class="placeholder-image bg-light d-flex align-items-center justify-content-center" style="height:120px;"><i class="bi bi-image text-muted fs-1"></i></div>'}
+                    <div class="image-info">
+                      <div class="file-name" title="${s.file_name}">${s.file_name}</div>
+                      <div class="new-name text-muted" title="${newName}">${newName}</div>
+                      <div class="dimensions">${s.image_width}x${s.image_height}</div>
+                      <button class="btn btn-danger btn-sm recycle-btn" onclick="recycle('${s.file_path.replace(/'/g, "\\'")}', this)">
+                        <i class="bi bi-trash me-1"></i>Recycle
+                      </button>
+                    </div>
                   </div>
-                </div>
-              `;
-              }).join('')}
+                `;
+                }).join('')}
+              </div>
             </div>
           </div>
         `;
@@ -318,27 +907,43 @@
 
     function renderUniqueImages(images) {
       const container = document.getElementById('unique-images-grid');
-      const heading = document.getElementById('unique-images-heading');
-      heading.innerText = `Unique Images (${images.length} images)`;
-      container.innerHTML = images.map(u => {
-        const thumbnailSrc = u.thumbnail_path ? `/thumbnails/${u.thumbnail_path.split('/').pop()}` : '';
-        const newName = generateNewName(u);
-        return `
-          <div class="unique-image-item card">
-            ${thumbnailSrc ? `<img src="${thumbnailSrc}" class="card-img-top" alt="${u.file_name}" data-image-id="${u.id}">` : ''}
-            <div class="card-body">
-              <p class="card-text">${u.file_name}</p>
-              <p class="card-text text-muted">${newName}</p>
-              <p class="card-text text-muted">${u.image_width}x${u.image_height}</p>
-              <button class="btn btn-danger btn-sm" onclick="recycle('${u.file_path.replace(/'/g, "'")}', this)">Recycle</button>
-            </div>
-          </div>
-        `;
-      }).join('');
+      
+      if (images.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No unique images found.</div>';
+        return;
+      }
+      
+      container.innerHTML = `
+        <div class="unique-image-grid">
+          ${images.map(u => {
+            const thumbnailSrc = u.thumbnail_path ? `/thumbnails/${u.thumbnail_path.split('/').pop()}` : '';
+            const newName = generateNewName(u);
+            const matchesSearch = currentSearch === '' || 
+              u.file_name.toLowerCase().includes(currentSearch) || 
+              newName.toLowerCase().includes(currentSearch);
+            
+            if (currentFilter !== 'all' && currentFilter !== 'unique' && !matchesSearch) return '';
+            
+            return `
+              <div class="unique-image-item">
+                ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${u.file_name}" data-image-id="${u.id}" data-group-type="unique">` : 
+                  '<div class="placeholder-image bg-light d-flex align-items-center justify-content-center" style="height:140px;"><i class="bi bi-image text-muted fs-1"></i></div>'}
+                <div class="unique-image-info">
+                  <div class="file-name" title="${u.file_name}">${u.file_name}</div>
+                  <div class="new-name text-muted" title="${newName}">${newName}</div>
+                  <div class="dimensions">${u.image_width}x${u.image_height}</div>
+                  <button class="btn btn-danger btn-sm recycle-btn" onclick="recycle('${u.file_path.replace(/'/g, "\\'")}', this)">
+                    <i class="bi bi-trash me-1"></i>Recycle
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
     }
 
     function setupImagePreview() {
-      const images = document.querySelectorAll('.image-item img, .unique-image-item img');
       const modal = document.getElementById("imagePreviewModal");
       const modalImg = document.getElementById("previewImage");
       const captionText = document.getElementById("caption");
@@ -350,82 +955,105 @@
       let currentImageId = null;
       let currentGroup = null;
       let currentGroupIndex = -1;
+      let allImagesInGroup = [];
       
-      function findImageGroup(imageId) {
-        const imageElement = document.querySelector(`img[data-image-id="${imageId}"]`);
-        if (!imageElement) return null;
-        
+      // Find all images in the same group
+      function findGroupImages(imageElement) {
+        const groupType = imageElement.getAttribute('data-group-type');
         const groupIds = imageElement.getAttribute('data-group-ids');
-        if (!groupIds) return null;
         
-        const groupContainer = imageElement.closest('[data-group-type]');
-        if (!groupContainer) return null;
+        // For unique images, there's no group
+        if (groupType === 'unique') {
+          return {
+            type: 'unique',
+            images: [imageElement]
+          };
+        }
         
-        const groupType = groupContainer.getAttribute('data-group-type');
-        const groupId = groupContainer.getAttribute('data-group-id');
+        // For duplicates and similar images
+        const selector = `[data-group-ids="${groupIds}"][data-group-type="${groupType}"]`;
+        const groupImages = Array.from(document.querySelectorAll(selector));
         
-        const groupImages = Array.from(groupContainer.querySelectorAll('img'));
-        const imageIds = groupImages.map(img => parseInt(img.getAttribute('data-image-id')));
-        
-        return { type: groupType, id: groupId, images: imageIds };
+        return {
+          type: groupType,
+          ids: groupIds,
+          images: groupImages
+        };
       }
       
+      // Navigate through group images
       function navigateGroup(direction) {
-        if (!currentGroup || currentGroupIndex === -1) return;
+        if (allImagesInGroup.length === 0 || currentGroupIndex === -1) return;
         
-        const groupImages = currentGroup.images;
         let newIndex = currentGroupIndex + direction;
         
         if (newIndex < 0) {
-          newIndex = groupImages.length - 1;
-        } else if (newIndex >= groupImages.length) {
+          newIndex = allImagesInGroup.length - 1;
+        } else if (newIndex >= allImagesInGroup.length) {
           newIndex = 0;
         }
         
         currentGroupIndex = newIndex;
-        const newImageId = groupImages[newIndex];
+        const newImageElement = allImagesInGroup[newIndex];
+        const newImageId = parseInt(newImageElement.getAttribute('data-image-id'));
         currentImageId = newImageId;
         
         const timestamp = new Date().getTime();
         modalImg.src = `/api/image/${newImageId}?t=${timestamp}`;
+        captionText.innerHTML = newImageElement.alt;
         
-        const imageElement = document.querySelector(`img[data-image-id="${newImageId}"]`);
-        if (imageElement) {
-          captionText.innerHTML = imageElement.alt;
+        // Update group info
+        if (currentGroup.type !== 'unique') {
+          groupInfo.innerHTML = `Group: ${currentGroup.ids} (${newIndex + 1}/${allImagesInGroup.length})`;
+        } else {
+          groupInfo.innerHTML = 'Unique Image';
         }
-        
-        groupInfo.innerHTML = `Group: ${currentGroup.id} (${newIndex + 1}/${groupImages.length})`;
       }
       
-      images.forEach(img => {
-        img.onclick = function(){
-          const imageId = parseInt(this.getAttribute('data-image-id'));
+      // Use event delegation for image clicks
+      document.addEventListener('click', function(e) {
+        if (e.target.tagName === 'IMG' && e.target.hasAttribute('data-image-id')) {
+          const imageElement = e.target;
+          const imageId = parseInt(imageElement.getAttribute('data-image-id'));
+          
           if (imageId) {
             currentImageId = imageId;
             
-            const group = findImageGroup(imageId);
-            currentGroup = group;
+            // Find the group for this image
+            currentGroup = findGroupImages(imageElement);
+            allImagesInGroup = currentGroup.images;
             
-            if (group) {
-              currentGroupIndex = group.images.indexOf(imageId);
-              groupInfo.innerHTML = `Group: ${group.id} (${currentGroupIndex + 1}/${group.images.length})`;
+            // Find current image index in group
+            currentGroupIndex = allImagesInGroup.findIndex(img => 
+              parseInt(img.getAttribute('data-image-id')) === imageId
+            );
+            
+            // Show/hide navigation buttons
+            if (allImagesInGroup.length > 1) {
               prevBtn.style.display = 'block';
               nextBtn.style.display = 'block';
             } else {
-              currentGroupIndex = -1;
-              groupInfo.innerHTML = '';
               prevBtn.style.display = 'none';
               nextBtn.style.display = 'none';
             }
             
+            // Update group info
+            if (currentGroup.type !== 'unique') {
+              groupInfo.innerHTML = `Group: ${currentGroup.ids} (${currentGroupIndex + 1}/${allImagesInGroup.length})`;
+            } else {
+              groupInfo.innerHTML = 'Unique Image';
+            }
+            
+            // Show modal with image
             const timestamp = new Date().getTime();
             modal.style.display = "block";
             modalImg.src = `/api/image/${imageId}?t=${timestamp}`;
-            captionText.innerHTML = this.alt;
+            captionText.innerHTML = imageElement.alt;
           }
         }
       });
       
+      // Close modal
       if(span) {
         span.onclick = function() {
           modal.style.display = "none";
@@ -440,6 +1068,7 @@
         }
       }
 
+      // Navigation buttons
       if(prevBtn) {
         prevBtn.onclick = () => navigateGroup(-1);
       }
@@ -448,6 +1077,7 @@
         nextBtn.onclick = () => navigateGroup(1);
       }
 
+      // Keyboard navigation
       document.addEventListener('keydown', function(event) {
         if (modal.style.display === "block") {
           if (event.key === 'ArrowLeft') {
@@ -462,8 +1092,13 @@
     }
 
     async function recycle(filePath, buttonElement) {
+      if (!confirm('Are you sure you want to recycle this file?')) {
+        return;
+      }
+      
+      const originalText = buttonElement.innerHTML;
       buttonElement.disabled = true;
-      buttonElement.textContent = 'Recycling...';
+      buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Recycling...';
       
       try {
         const response = await fetch('/api/recycle', { 
@@ -473,16 +1108,33 @@
         });
         const data = await response.json();
         if (data.success) {
-          window.location.reload();
+          showToast('File recycled successfully!');
+          // Remove the card after a short delay to show the toast
+          setTimeout(() => {
+            const card = buttonElement.closest('.image-item, .unique-image-item');
+            if (card) {
+              card.style.transition = 'opacity 0.3s ease';
+              card.style.opacity = '0';
+              setTimeout(() => {
+                card.remove();
+                
+                // Update stats if we have the data
+                if (imageData) {
+                  imageData.totalImages--;
+                  // This is a simplified update - in a real app you might want to refresh the data
+                  document.querySelector('.stat-item .count').textContent = imageData.totalImages;
+                }
+              }, 300);
+            }
+          }, 1000);
         } else {
-          alert('Failed to recycle file: ' + data.error);
-          buttonElement.disabled = false;
-          buttonElement.textContent = 'Recycle';
+          throw new Error(data.error || 'Unknown error');
         }
       } catch (error) {
-        alert('Error recycling file: ' + error.message);
+        console.error('Error recycling file:', error);
+        showToast(`Error recycling file: ${error.message}`, false);
         buttonElement.disabled = false;
-        buttonElement.textContent = 'Recycle';
+        buttonElement.innerHTML = originalText;
       }
     }
   </script>
