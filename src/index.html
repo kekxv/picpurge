@@ -731,27 +731,38 @@
     function applyFilters() {
       if (!imageData) return;
       
+      // Show/hide sections based on current filter
+      const duplicatesSection = document.getElementById('duplicates-content');
+      const similarSection = document.getElementById('similar-content');
+      const uniqueSection = document.getElementById('unique-content');
+      
       // Filter and render based on current filter and search
       switch(currentFilter) {
         case 'all':
+          duplicatesSection.classList.add('show');
+          similarSection.classList.add('show');
+          uniqueSection.classList.add('show');
           renderDuplicateGroups(imageData.duplicateGroups);
           renderSimilarGroups(imageData.similarGroups);
           renderUniqueImages(imageData.uniqueImages);
           break;
         case 'duplicates':
+          duplicatesSection.classList.add('show');
+          similarSection.classList.remove('show');
+          uniqueSection.classList.remove('show');
           renderDuplicateGroups(imageData.duplicateGroups);
-          document.getElementById('similar-content').classList.remove('show');
-          document.getElementById('unique-content').classList.remove('show');
           break;
         case 'similar':
+          duplicatesSection.classList.remove('show');
+          similarSection.classList.add('show');
+          uniqueSection.classList.remove('show');
           renderSimilarGroups(imageData.similarGroups);
-          document.getElementById('duplicates-content').classList.remove('show');
-          document.getElementById('unique-content').classList.remove('show');
           break;
         case 'unique':
+          duplicatesSection.classList.remove('show');
+          similarSection.classList.remove('show');
+          uniqueSection.classList.add('show');
           renderUniqueImages(imageData.uniqueImages);
-          document.getElementById('duplicates-content').classList.remove('show');
-          document.getElementById('similar-content').classList.remove('show');
           break;
       }
     }
@@ -962,11 +973,12 @@
         const groupType = imageElement.getAttribute('data-group-type');
         const groupIds = imageElement.getAttribute('data-group-ids');
         
-        // For unique images, there's no group
+        // For unique images, collect all unique images
         if (groupType === 'unique') {
+          const allUniqueImages = Array.from(document.querySelectorAll('img[data-group-type="unique"]'));
           return {
             type: 'unique',
-            images: [imageElement]
+            images: allUniqueImages
           };
         }
         
@@ -1006,7 +1018,7 @@
         if (currentGroup.type !== 'unique') {
           groupInfo.innerHTML = `Group: ${currentGroup.ids} (${newIndex + 1}/${allImagesInGroup.length})`;
         } else {
-          groupInfo.innerHTML = 'Unique Image';
+          groupInfo.innerHTML = `Unique Images (${newIndex + 1}/${allImagesInGroup.length})`;
         }
       }
       
