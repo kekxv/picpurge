@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Util Results</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <style>
+    .image-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .image-item {
+      border: 1px solid #ddd;
+      padding: 5px;
+      text-align: center;
+      flex: 1 1 calc(10% - 10px);
+      min-width: 100px;
+    }
+    .image-item img {
+      width: 100%;
+      height: 100px;
+      object-fit: contain;
+      cursor: pointer;
+    }
+    .similar-group, .duplicate-group {
+      border: 2px solid #007bff;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    .unique-images-section {
+      margin-top: 40px;
+      padding: 20px;
+      border-top: 1px solid #eee;
+    }
+    .unique-images-section h2 {
+      margin-bottom: 20px;
+    }
+    .unique-image-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: flex-start;
+    }
+    .unique-image-item {
+      flex: 0 0 calc(20% - 20px);
+      min-width: 150px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .unique-image-item img {
+      width: 100%;
+      height: 150px;
+      object-fit: contain;
+      cursor: pointer;
+    }
+    .unique-image-item .card-body {
+      padding: 10px;
+    }
+    .unique-image-item .card-text {
+      font-size: 0.9em;
+      margin-bottom: 5px;
+    }
+    .unique-image-item .text-muted {
+      font-size: 0.8em;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.9);
+    }
+    .modal-content {
+      margin: auto;
+      display: block;
+      max-width: 90%;
+      max-height: 90%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      object-fit: contain;
+    }
+    .close {
+      position: absolute;
+      top: 15px;
+      right: 35px;
+      color: #f1f1f1;
+      font-size: 40px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .stats-card {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .stats-card h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    .stat-item {
+      background-color: white;
+      border-radius: 6px;
+      padding: 15px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .stat-item .count {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #007bff;
+    }
+    .stat-item .label {
+      font-size: 0.9rem;
+      color: #666;
+    }
+    @media (max-width: 768px) {
+      .image-item {
+        flex: 1 1 calc(33.333% - 10px);
+      }
+      .unique-image-item {
+        flex: 0 0 calc(50% - 20px);
+      }
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Statistics Section -->
+    <div class="stats-card">
+      <h2>Image Statistics</h2>
+      <div class="stats-grid" id="stats-grid">
+        <!-- Stats will be rendered here -->
+      </div>
+    </div>
+
+    <h1 class="mt-4">Duplicate Image Groups</h1>
+    <div id="duplicate-groups">
+      <!-- Duplicate groups will be rendered here -->
+    </div>
+
+    <h1 class="mt-4">Similar Image Groups</h1>
+    <div id="similar-groups">
+      <!-- Similar groups will be rendered here -->
+    </div>
+
+    <!-- Unique Images Section -->
+    <div class="unique-images-section">
+      <h2 id="unique-images-heading">Unique Images</h2>
+      <div class="unique-image-grid" id="unique-images-grid">
+        <!-- Unique images will be rendered here -->
+      </div>
+    </div>
+  </div>
+  
+  <!-- The Modal for image preview -->
+  <div id="imagePreviewModal" class="modal">
+    <span class="close">&times;</span>
+    <img class="modal-content" id="previewImage">
+    <div id="caption"></div>
+    <div id="groupInfo" style="position: absolute; top: 60px; left: 20px; color: white; font-size: 16px;"></div>
+    <button id="prevBtn" class="nav-btn" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px; cursor: pointer; display: none;">&lt; Prev</button>
+    <button id="nextBtn" class="nav-btn" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px; cursor: pointer; display: none;">Next &gt;</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script>
+    function parseCreateDate(create_date) {
+      if (!create_date) {
+          return null;
+      }
+      if (create_date instanceof Date) {
+          return create_date;
+      }
+      if (typeof create_date === 'number') {
+          if (create_date < 1e11) {
+              return new Date(create_date * 1000);
+          }
+          return new Date(create_date);
+      }
+      if (typeof create_date === 'string') {
+          let dateStr = create_date;
+          if (/^\d{4}:\d{2}:\d{2}/.test(dateStr)) {
+              dateStr = dateStr.substring(0, 10).replace(/:/g, '-') + dateStr.substring(10);
+          }
+          const parsedDate = new Date(dateStr);
+          if (!isNaN(parsedDate.getTime())) {
+              return parsedDate;
+          }
+      }
+      return null;
+    }
+
+    function generateNewName(image) {
+      const date = parseCreateDate(image.create_date) || new Date();
+
+      const yyyy = date.getFullYear();
+      const MM = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const HH = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      const ss = String(date.getSeconds()).padStart(2, '0');
+      const sequence = String(image.id).padStart(6, '0');
+      const extension = image.file_name.split('.').pop();
+      return `${yyyy}${MM}${dd}${HH}${mm}${ss}.${sequence}.${extension}`;
+    }
+
+    window.onload = async () => {
+      const response = await fetch('/api/images');
+      const data = await response.json();
+
+      renderStats(data);
+      renderDuplicateGroups(data.duplicateGroups);
+      renderSimilarGroups(data.similarGroups);
+      renderUniqueImages(data.uniqueImages);
+
+      setupImagePreview();
+    };
+
+    function renderStats(data) {
+      const statsGrid = document.getElementById('stats-grid');
+      statsGrid.innerHTML = `
+        <div class="stat-item">
+          <div class="count">${data.totalImages}</div>
+          <div class="label">Total Images</div>
+        </div>
+        <div class="stat-item">
+          <div class="count">${data.duplicateGroupCount}</div>
+          <div class="label">Duplicate Groups</div>
+        </div>
+        <div class="stat-item">
+          <div class="count">${data.similarGroupCount}</div>
+          <div class="label">Similar Groups</div>
+        </div>
+        <div class="stat-item">
+          <div class="count">${data.uniqueImageCount}</div>
+          <div class="label">Unique Images</div>
+        </div>
+      `;
+    }
+
+    function renderDuplicateGroups(groups) {
+      const container = document.getElementById('duplicate-groups');
+      container.innerHTML = groups.map(groupImages => {
+        const groupKey = groupImages[0].id;
+        return `
+          <div class="duplicate-group" data-group-type="duplicate" data-group-id="${groupKey}">
+            <h5>Group: ${groupKey} (${groupImages.length} images)</h5>
+            <div class="image-grid">
+              ${groupImages.map(d => {
+                const thumbnailSrc = d.thumbnail_path ? `/thumbnails/${d.thumbnail_path.split('/').pop()}` : '';
+                const newName = generateNewName(d);
+                return `
+                <div class="image-item card">
+                  ${thumbnailSrc ? `<img src="${thumbnailSrc}" class="card-img-top" alt="${d.file_name}" data-image-id="${d.id}" data-group-ids="${groupKey}">` : ''}
+                  <div class="card-body">
+                    <p class="card-text">${d.file_name}</p>
+                    <p class="card-text text-muted">${newName}</p>
+                    <p class="card-text text-muted">${d.image_width}x${d.image_height} ${d.is_duplicate ? `Duplicate of ID: ${d.duplicate_of}` : 'Original'}</p>
+                    <button class="btn btn-danger btn-sm" onclick="recycle('${d.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                  </div>
+                </div>
+              `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSimilarGroups(groups) {
+      const container = document.getElementById('similar-groups');
+      container.innerHTML = groups.map(groupImages => {
+        const groupKey = groupImages.map(i => i.id).sort().join('-');
+        return `
+          <div class="similar-group" data-group-type="similar" data-group-id="${groupKey}">
+            <h5>Group: ${groupKey} (${groupImages.length} images)</h5>
+            <div class="image-grid">
+              ${groupImages.map(s => {
+                const thumbnailSrc = s.thumbnail_path ? `/thumbnails/${s.thumbnail_path.split('/').pop()}` : '';
+                const newName = generateNewName(s);
+                return `
+                <div class="image-item card">
+                  ${thumbnailSrc ? `<img src="${thumbnailSrc}" class="card-img-top" alt="${s.file_name}" data-image-id="${s.id}" data-group-ids="${groupKey}">` : ''}
+                  <div class="card-body">
+                    <p class="card-text">${s.file_name}</p>
+                    <p class="card-text text-muted">${newName}</p>
+                    <p class="card-text text-muted">${s.image_width}x${s.image_height}</p>
+                    <button class="btn btn-danger btn-sm" onclick="recycle('${s.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                  </div>
+                </div>
+              `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderUniqueImages(images) {
+      const container = document.getElementById('unique-images-grid');
+      const heading = document.getElementById('unique-images-heading');
+      heading.innerText = `Unique Images (${images.length} images)`;
+      container.innerHTML = images.map(u => {
+        const thumbnailSrc = u.thumbnail_path ? `/thumbnails/${u.thumbnail_path.split('/').pop()}` : '';
+        const newName = generateNewName(u);
+        return `
+          <div class="unique-image-item card">
+            ${thumbnailSrc ? `<img src="${thumbnailSrc}" class="card-img-top" alt="${u.file_name}" data-image-id="${u.id}">` : ''}
+            <div class="card-body">
+              <p class="card-text">${u.file_name}</p>
+              <p class="card-text text-muted">${newName}</p>
+              <p class="card-text text-muted">${u.image_width}x${u.image_height}</p>
+              <button class="btn btn-danger btn-sm" onclick="recycle('${u.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setupImagePreview() {
+      const images = document.querySelectorAll('.image-item img, .unique-image-item img');
+      const modal = document.getElementById("imagePreviewModal");
+      const modalImg = document.getElementById("previewImage");
+      const captionText = document.getElementById("caption");
+      const span = document.getElementsByClassName("close")[0];
+      const prevBtn = document.getElementById("prevBtn");
+      const nextBtn = document.getElementById("nextBtn");
+      const groupInfo = document.getElementById("groupInfo");
+      
+      let currentImageId = null;
+      let currentGroup = null;
+      let currentGroupIndex = -1;
+      
+      function findImageGroup(imageId) {
+        const imageElement = document.querySelector(`img[data-image-id="${imageId}"]`);
+        if (!imageElement) return null;
+        
+        const groupIds = imageElement.getAttribute('data-group-ids');
+        if (!groupIds) return null;
+        
+        const groupContainer = imageElement.closest('[data-group-type]');
+        if (!groupContainer) return null;
+        
+        const groupType = groupContainer.getAttribute('data-group-type');
+        const groupId = groupContainer.getAttribute('data-group-id');
+        
+        const groupImages = Array.from(groupContainer.querySelectorAll('img'));
+        const imageIds = groupImages.map(img => parseInt(img.getAttribute('data-image-id')));
+        
+        return { type: groupType, id: groupId, images: imageIds };
+      }
+      
+      function navigateGroup(direction) {
+        if (!currentGroup || currentGroupIndex === -1) return;
+        
+        const groupImages = currentGroup.images;
+        let newIndex = currentGroupIndex + direction;
+        
+        if (newIndex < 0) {
+          newIndex = groupImages.length - 1;
+        } else if (newIndex >= groupImages.length) {
+          newIndex = 0;
+        }
+        
+        currentGroupIndex = newIndex;
+        const newImageId = groupImages[newIndex];
+        currentImageId = newImageId;
+        
+        const timestamp = new Date().getTime();
+        modalImg.src = `/api/image/${newImageId}?t=${timestamp}`;
+        
+        const imageElement = document.querySelector(`img[data-image-id="${newImageId}"]`);
+        if (imageElement) {
+          captionText.innerHTML = imageElement.alt;
+        }
+        
+        groupInfo.innerHTML = `Group: ${currentGroup.id} (${newIndex + 1}/${groupImages.length})`;
+      }
+      
+      images.forEach(img => {
+        img.onclick = function(){
+          const imageId = parseInt(this.getAttribute('data-image-id'));
+          if (imageId) {
+            currentImageId = imageId;
+            
+            const group = findImageGroup(imageId);
+            currentGroup = group;
+            
+            if (group) {
+              currentGroupIndex = group.images.indexOf(imageId);
+              groupInfo.innerHTML = `Group: ${group.id} (${currentGroupIndex + 1}/${group.images.length})`;
+              prevBtn.style.display = 'block';
+              nextBtn.style.display = 'block';
+            } else {
+              currentGroupIndex = -1;
+              groupInfo.innerHTML = '';
+              prevBtn.style.display = 'none';
+              nextBtn.style.display = 'none';
+            }
+            
+            const timestamp = new Date().getTime();
+            modal.style.display = "block";
+            modalImg.src = `/api/image/${imageId}?t=${timestamp}`;
+            captionText.innerHTML = this.alt;
+          }
+        }
+      });
+      
+      if(span) {
+        span.onclick = function() {
+          modal.style.display = "none";
+        }
+      }
+      
+      if(modal) {
+        modal.onclick = function(event) {
+          if (event.target === modal) {
+            modal.style.display = "none";
+          }
+        }
+      }
+
+      if(prevBtn) {
+        prevBtn.onclick = () => navigateGroup(-1);
+      }
+
+      if(nextBtn) {
+        nextBtn.onclick = () => navigateGroup(1);
+      }
+
+      document.addEventListener('keydown', function(event) {
+        if (modal.style.display === "block") {
+          if (event.key === 'ArrowLeft') {
+            navigateGroup(-1);
+          } else if (event.key === 'ArrowRight') {
+            navigateGroup(1);
+          } else if (event.key === 'Escape') {
+            modal.style.display = "none";
+          }
+        }
+      });
+    }
+
+    async function recycle(filePath, buttonElement) {
+      buttonElement.disabled = true;
+      buttonElement.textContent = 'Recycling...';
+      
+      try {
+        const response = await fetch('/api/recycle', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ filePath }) 
+        });
+        const data = await response.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert('Failed to recycle file: ' + data.error);
+          buttonElement.disabled = false;
+          buttonElement.textContent = 'Recycle';
+        }
+      } catch (error) {
+        alert('Error recycling file: ' + error.message);
+        buttonElement.disabled = false;
+        buttonElement.textContent = 'Recycle';
+      }
+    }
+  </script>
+</body>
+</html>

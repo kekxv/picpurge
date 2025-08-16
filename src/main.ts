@@ -63,8 +63,19 @@ async function processImage(filePath: string) {
     
     let exifData = null;
     if (metadata.exif) {
-      const parser = ExifParser.create(metadata.exif);
-      exifData = parser.parse();
+      try {
+        const parser = ExifParser.create(metadata.exif);
+        exifData = parser.parse();
+      } catch (exifError) {
+        const message = exifError instanceof Error ? exifError.message : String(exifError);
+        spinner.warn(chalk.yellow(`Could not parse EXIF data for ${basename(filePath)}: ${message}`));
+        // exifData will remain null, and processing will continue
+      }
+    }
+
+    let create_date = exifData?.tags?.DateTimeOriginal;
+    if (!create_date) {
+        create_date = stat.birthtime;
     }
 
     const thumbnailDir = join(process.cwd(), 'thumbnails');
@@ -84,13 +95,14 @@ async function processImage(filePath: string) {
       exifData?.tags?.Make,
       exifData?.tags?.Model,
       exifData?.tags?.LensModel,
-      exifData?.tags?.DateTimeOriginal,
+      create_date,
       phash,
       thumbnailPath
     );
     spinner.succeed(chalk.green(`Processed ${basename(filePath)}.`));
   } catch (error) {
-    spinner.fail(chalk.red(`Error processing ${basename(filePath)}: ${error}`));
+    const message = error instanceof Error ? error.message : String(error);
+    spinner.fail(chalk.red(`Error processing ${basename(filePath)}: ${message}`));
   }
 }
 
