@@ -5,15 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Image Util Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
-            primary: '#4361ee',
+            primary: '#5A9A8B',
             secondary: '#3f37c9',
             success: '#4cc9f0',
             warning: '#f72585',
+            light: '#F9FAFB',
+            dark: '#374151',
+          },
+          fontFamily: {
+            sans: ['Poppins', 'sans-serif'],
+            serif: ['Lora', 'serif'],
           }
         }
       }
@@ -21,62 +30,64 @@
   </script>
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Poppins', sans-serif;
+      background-color: #F9FAFB;
+      color: #374151;
     }
   </style>
 </head>
-<body>
-  <nav class="bg-gray-800 text-white shadow-lg sticky top-0 z-50">
-    <div class="container mx-auto px-4">
-      <a class="text-2xl font-bold" href="#">
-        Image Util Dashboard
+<body class="bg-light font-sans text-dark">
+  <nav class="bg-white shadow-md sticky top-0 z-50">
+    <div class="container mx-auto px-6 py-4">
+      <a class="text-3xl font-serif font-bold text-primary" href="#">
+        Image Gallery
       </a>
     </div>
   </nav>
 
-  <div class="container mx-auto px-4 max-w-7xl mt-8">
+  <div class="container mx-auto px-6 py-8 max-w-7xl">
     <!-- Statistics Section -->
-    <div class="bg-gray-800 text-white rounded-lg shadow-lg p-6 mb-8">
-      <h2 class="text-2xl font-bold mb-4">Image Statistics</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-grid">
+    <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+      <h2 class="text-2xl font-serif font-bold mb-4 text-primary">Image Statistics</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="stats-grid">
         <!-- Stats will be rendered here -->
         <div class="flex justify-center items-center h-32">
-          <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
+          <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
         </div>
       </div>
     </div>
 
     <!-- Search and Filter Section -->
-    <div class="mb-4">
+    <div class="mb-8">
       <div class="relative">
-        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-4">
           <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
           </svg>
         </span>
-        <input type="text" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:border-blue-300 focus:shadow-outline-blue sm:text-sm transition duration-150 ease-in-out" id="searchInput" placeholder="Search by filename...">
+        <input type="text" class="block w-full pl-12 pr-3 py-3 border border-gray-200 rounded-full leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition duration-150 ease-in-out" id="searchInput" placeholder="Search by filename...">
       </div>
     </div>
 
-    <div class="flex space-x-2 mb-8">
-      <button class="px-4 py-2 rounded-full text-sm font-medium bg-blue-500 text-white filter-btn active" data-filter="all">All Images</button>
-      <button class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 filter-btn" data-filter="duplicates">Duplicates</button>
-      <button class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 filter-btn" data-filter="similar">Similar</button>
-      <button class="px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 filter-btn" data-filter="unique">Unique</button>
+    <div class="flex space-x-4 mb-8">
+      <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn active bg-warning text-white" data-filter="all">All Images</button>
+      <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn bg-white text-gray-700 hover:bg-pink-100 hover:text-warning" data-filter="duplicates">Duplicates</button>
+      <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn bg-white text-gray-700 hover:bg-pink-100 hover:text-warning" data-filter="similar">Similar</button>
+      <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn bg-white text-gray-700 hover:bg-pink-100 hover:text-warning" data-filter="unique">Unique</button>
     </div>
 
-    <div class="space-y-8">
+    <div class="space-y-12">
       <!-- Duplicate Groups Section -->
       <div class="">
-        <div class="bg-white rounded-lg shadow-lg mb-8" id="duplicates-section">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-xl font-bold">Duplicate Image Groups</h2>
+        <div class="bg-white rounded-2xl shadow-lg" id="duplicates-section">
+          <div class="px-6 py-4">
+            <h2 class="text-2xl font-serif font-bold text-primary">Duplicate Image Groups</h2>
           </div>
           <div class="p-6" id="duplicates-content">
             <div id="duplicate-groups">
               <!-- Duplicate groups will be rendered here -->
               <div class="flex justify-center items-center h-32">
-                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
               </div>
             </div>
           </div>
@@ -85,15 +96,15 @@
 
       <!-- Similar Groups Section -->
       <div class="">
-        <div class="bg-white rounded-lg shadow-lg mb-8" id="similar-section">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-xl font-bold">Similar Image Groups</h2>
+        <div class="bg-white rounded-2xl shadow-lg" id="similar-section">
+          <div class="px-6 py-4">
+            <h2 class="text-2xl font-serif font-bold text-primary">Similar Image Groups</h2>
           </div>
           <div class="p-6" id="similar-content">
             <div id="similar-groups">
               <!-- Similar groups will be rendered here -->
               <div class="flex justify-center items-center h-32">
-                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
               </div>
             </div>
           </div>
@@ -102,15 +113,15 @@
 
       <!-- Unique Images Section -->
       <div class="">
-        <div class="bg-white rounded-lg shadow-lg mb-8" id="unique-section">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-xl font-bold">Unique Images</h2>
+        <div class="bg-white rounded-2xl shadow-lg" id="unique-section">
+          <div class="px-6 py-4">
+            <h2 class="text-2xl font-serif font-bold text-primary">Unique Images</h2>
           </div>
           <div class="p-6" id="unique-content">
             <div id="unique-images-grid">
               <!-- Unique images will be rendered here -->
               <div class="flex justify-center items-center h-32">
-                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
               </div>
             </div>
           </div>
@@ -212,18 +223,19 @@
       });
     }
 
-    // Initialize filter buttons
     function initFilters() {
       const filterButtons = document.querySelectorAll('.filter-btn');
       filterButtons.forEach(button => {
         button.addEventListener('click', function() {
+          // Reset all buttons to inactive state
           filterButtons.forEach(btn => {
-            btn.classList.remove('bg-blue-500', 'text-white');
-            btn.classList.add('bg-gray-200', 'text-gray-700');
+            btn.classList.remove('active', 'bg-primary', 'text-white');
+            btn.classList.add('bg-white', 'text-gray-700', 'hover:bg-teal-100');
           });
           
-          this.classList.add('bg-blue-500', 'text-white');
-          this.classList.remove('bg-gray-200', 'text-gray-700');
+          // Set clicked button to active state
+          this.classList.add('active', 'bg-primary', 'text-white');
+          this.classList.remove('bg-white', 'text-gray-700', 'hover:bg-teal-100');
           
           currentFilter = this.getAttribute('data-filter');
           applyFilters();
@@ -235,6 +247,147 @@
         currentSearch = this.value.toLowerCase();
         applyFilters();
       });
+    }
+
+    function renderStats(data) {
+      const statsGrid = document.getElementById('stats-grid');
+      statsGrid.innerHTML = `
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.totalImages}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Total Images</span>
+        </div>
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.duplicateGroupCount}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Duplicate Groups</span>
+        </div>
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.similarGroupCount}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Similar Groups</span>
+        </div>
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.uniqueImageCount}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Unique Images</span>
+        </div>
+      `;
+    }
+
+    function renderDuplicateGroups(groups) {
+      const container = document.getElementById('duplicate-groups');
+      if (groups.length === 0) {
+        container.innerHTML = '<div class="text-gray-500">No duplicate image groups found.</div>';
+        return;
+      }
+      container.innerHTML = groups.map(groupImages => {
+        const groupKey = groupImages[0].id;
+        return `
+          <div class="mb-8">
+            <h3 class="text-xl font-serif font-semibold mb-4">Group: ${groupKey} (${groupImages.length} images)</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+              ${groupImages.map(d => {
+                const thumbnailSrc = d.thumbnail_path ? `/thumbnails/${d.thumbnail_path.split('/').pop()}` : '';
+                const newName = generateNewName(d);
+                return `
+                  <div class="bg-white rounded-xl overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300">
+                    ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${d.file_name}" class="w-full h-32 object-cover cursor-pointer" data-image-id="${d.id}" data-group-ids="${groupKey}" data-group-type="duplicate">` : '<div class="w-full h-32 bg-gray-100 flex items-center justify-center"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1.586-1.586a2 2 0 00-2.828 0L6 14m6-6l.01.01"></path></svg></div>'}
+                    <div class="p-4">
+                      <div class="font-semibold truncate" title="${d.file_name}">${d.file_name}</div>
+                      <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
+                      <div class="text-sm text-gray-500">${d.image_width}x${d.image_height}</div>
+                      <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${d.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSimilarGroups(groups) {
+      const container = document.getElementById('similar-groups');
+      if (groups.length === 0) {
+        container.innerHTML = '<div class="text-gray-500">No similar image groups found.</div>';
+        return;
+      }
+      const content = groups.map(groupImages => {
+        const groupKey = groupImages.map(i => i.id).sort().join('-');
+        if (groupImages.length === 2) {
+          return `
+            <div class="inline-block w-full md:w-1/2 align-top px-2 mb-8">
+              <h3 class="text-xl font-serif font-semibold mb-4">Group: ${groupKey} (2 images)</h3>
+              <div class="grid grid-cols-2 gap-2">
+                ${groupImages.map(s => {
+                  const thumbnailSrc = s.thumbnail_path ? `/thumbnails/${s.thumbnail_path.split('/').pop()}` : '';
+                  const newName = generateNewName(s);
+                  return `
+                    <div class="image-card bg-white rounded-xl overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300">
+                      ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${s.file_name}" class="w-full h-32 object-cover cursor-pointer" data-image-id="${s.id}" data-group-ids="${groupKey}" data-group-type="similar">` : '<div class="w-full h-32 bg-gray-100 flex items-center justify-center"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1.586-1.586a2 2 0 00-2.828 0L6 14m6-6l.01.01"></path></svg></div>'}
+                      <div class="p-4">
+                        <div class="font-semibold truncate" title="${s.file_name}">${s.file_name}</div>
+                        <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
+                        <div class="text-sm text-gray-500">${s.image_width}x${s.image_height}</div>
+                        <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${s.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        } else {
+          return `
+            <div class="mb-8">
+              <h3 class="text-xl font-serif font-semibold mb-4">Group: ${groupKey} (${groupImages.length} images)</h3>
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+                ${groupImages.map(s => {
+                  const thumbnailSrc = s.thumbnail_path ? `/thumbnails/${s.thumbnail_path.split('/').pop()}` : '';
+                  const newName = generateNewName(s);
+                  return `
+                    <div class="image-card bg-white rounded-xl overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300">
+                      ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${s.file_name}" class="w-full h-32 object-cover cursor-pointer" data-image-id="${s.id}" data-group-ids="${groupKey}" data-group-type="similar">` : '<div class="w-full h-32 bg-gray-100 flex items-center justify-center"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1.586-1.586a2 2 0 00-2.828 0L6 14m6-6l.01.01"></path></svg></div>'}
+                      <div class="p-4">
+                        <div class="font-semibold truncate" title="${s.file_name}">${s.file_name}</div>
+                        <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
+                        <div class="text-sm text-gray-500">${s.image_width}x${s.image_height}</div>
+                        <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${s.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }
+      }).join('');
+      container.innerHTML = `<div class="-mx-2">${content}</div>`;
+    }
+
+    function renderUniqueImages(images) {
+      const container = document.getElementById('unique-images-grid');
+      if (images.length === 0) {
+        container.innerHTML = '<div class="text-gray-500">No unique images found.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          ${images.map(u => {
+            const thumbnailSrc = u.thumbnail_path ? `/thumbnails/${u.thumbnail_path.split('/').pop()}` : '';
+            const newName = generateNewName(u);
+            return `
+              <div class="bg-white rounded-xl overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300">
+                ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${u.file_name}" class="w-full h-40 object-cover cursor-pointer" data-image-id="${u.id}" data-group-type="unique">` : '<div class="w-full h-40 bg-gray-100 flex items-center justify-center"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1.586-1.586a2 2 0 00-2.828 0L6 14m6-6l.01.01"></path></svg></div>'}
+                <div class="p-4">
+                  <div class="font-semibold truncate" title="${u.file_name}">${u.file_name}</div>
+                  <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
+                  <div class="text-sm text-gray-500">${u.image_width}x${u.image_height}</div>
+                  <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${u.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
     }
 
     function applyFilters() {
@@ -296,21 +449,21 @@
     function renderStats(data) {
       const statsGrid = document.getElementById('stats-grid');
       statsGrid.innerHTML = `
-        <div class="bg-gray-700 p-4 rounded-lg text-center">
-          <span class="text-4xl font-bold">${data.totalImages}</span>
-          <span class="text-sm text-gray-400 mt-2 block">Total Images</span>
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.totalImages}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Total Images</span>
         </div>
-        <div class="bg-gray-700 p-4 rounded-lg text-center">
-          <span class="text-4xl font-bold">${data.duplicateGroupCount}</span>
-          <span class="text-sm text-gray-400 mt-2 block">Duplicate Groups</span>
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.duplicateGroupCount}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Duplicate Groups</span>
         </div>
-        <div class="bg-gray-700 p-4 rounded-lg text-center">
-          <span class="text-4xl font-bold">${data.similarGroupCount}</span>
-          <span class="text-sm text-gray-400 mt-2 block">Similar Groups</span>
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.similarGroupCount}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Similar Groups</span>
         </div>
-        <div class="bg-gray-700 p-4 rounded-lg text-center">
-          <span class="text-4xl font-bold">${data.uniqueImageCount}</span>
-          <span class="text-sm text-gray-400 mt-2 block">Unique Images</span>
+        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
+          <span class="text-5xl font-bold font-serif text-dark">${data.uniqueImageCount}</span>
+          <span class="text-sm text-gray-600 mt-2 block">Unique Images</span>
         </div>
       `;
     }
@@ -445,7 +598,7 @@
       }
       
       function navigateGroup(direction) {
-        if (allImagesInGroup.length === 0 || currentGroupIndex === -1) return;
+        if (allImagesInGroup.length === 0 || currentGroupIndex === -1) return; 
         
         let newIndex = currentGroupIndex + direction;
         
