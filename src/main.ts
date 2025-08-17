@@ -38,7 +38,7 @@ async function processImage(filePath: string, multibar: cliProgress.MultiBar) {
       const recycleDir = join(process.cwd(), 'Recycle');
       await fs.mkdir(recycleDir, { recursive: true });
       const destPath = join(recycleDir, basename(filePath));
-      
+
       try {
         // Try rename first (more efficient for same device)
         await fs.rename(filePath, destPath);
@@ -47,7 +47,7 @@ async function processImage(filePath: string, multibar: cliProgress.MultiBar) {
         await fs.copyFile(filePath, destPath);
         await fs.unlink(filePath);
       }
-      
+
       const message = chalk.yellow(`Moved ${basename(filePath)} to Recycle bin (size < 10KB).`);
       const messageBar = multibar.create(1, 1, { format: message });
       multibar.remove(messageBar);
@@ -59,7 +59,7 @@ async function processImage(filePath: string, multibar: cliProgress.MultiBar) {
 
     const sharpInstance = sharp(fileBuffer);
     const metadata = await sharpInstance.metadata();
-    
+
     let exifData = null;
     if (metadata.exif) {
       try {
@@ -127,7 +127,7 @@ async function findSimilarImages() {
   const images: any[] = await db.all('SELECT id, phash, image_width, image_height FROM images');
   // Use a stricter threshold to reduce false positives
   const phashThreshold = 3; // Reduced from 5 to 3 for stricter matching
-  
+
   // For size comparison, we'll use a stricter threshold
   const sizeThreshold = 0.05; // 5% difference in size allowed
 
@@ -138,10 +138,10 @@ async function findSimilarImages() {
     for (let j = i + 1; j < images.length; j++) {
       const image2 = images[j];
       if (!image2.phash || !image2.image_width || !image2.image_height) continue;
-      
+
       // Calculate phash distance
       const phashDistance = hamming(hexToBinary(image1.phash), hexToBinary(image2.phash));
-      
+
       // Only consider size similarity if phash distance is already reasonably close
       if (phashDistance <= phashThreshold) {
         // Calculate size similarity (ratio of areas)
@@ -149,7 +149,7 @@ async function findSimilarImages() {
         const area2 = image2.image_width * image2.image_height;
         const sizeRatio = Math.min(area1, area2) / Math.max(area1, area2);
         const sizeDifference = 1 - sizeRatio;
-        
+
         // Add to similar list only if size difference is within threshold
         if (sizeDifference <= sizeThreshold) {
           similar.push(image2.id);
@@ -164,9 +164,14 @@ async function findSimilarImages() {
   console.log(chalk.blue('[INFO] Similarity analysis complete.'));
 }
 
-async function sortImages(rootPath: string) {
+async function sortImages(rootPath: string, destinationPath?: string, multibar?: cliProgress.MultiBar) {
   const db = getDb();
   const images: any[] = await db.all('SELECT * FROM images WHERE is_duplicate = FALSE');
+
+  let sortProgressBar: cliProgress.SingleBar | undefined;
+  if (multibar) {
+    sortProgressBar = multibar.create(images.length, 0, { filename: "N/A", task: "Sorting" });
+  }
 
   for (const image of images) {
     const createDate = image.create_date ? new Date(image.create_date) : new Date();
@@ -181,25 +186,51 @@ async function sortImages(rootPath: string) {
     const ext = extname(image.file_path);
 
     const newFileName = `${year}${month}${day}${hours}${minutes}${seconds}.${sequence}${ext}`;
+    const targetDir = destinationPath ? destinationPath : rootPath; // Use destinationPath if provided
+
+    // --- MODIFICATION START ---
+    // Change directory structure to Year/Month
+    const yearDir = year.toString();
+    const monthDir = month; // month is already padded
+    const newBaseDir = join(targetDir, yearDir, monthDir);
+    // --- MODIFICATION END ---
+
     const newPath = join(
-      rootPath,
-      image.device_make || 'UnknownMake',
-      image.device_model || 'UnknownModel',
-      image.lens_model || 'UnknownLens',
+      newBaseDir, // Use the new base directory
       newFileName
     );
 
     await fs.mkdir(dirname(newPath), { recursive: true });
-    try {
-      // Try rename first (more efficient for same device)
-      await fs.rename(image.file_path, newPath);
-    } catch (renameErr) {
-      // If rename fails (e.g., cross-device), use copy + unlink
+
+    if (destinationPath) {
+      // If destinationPath is provided, copy the file
       await fs.copyFile(image.file_path, newPath);
-      await fs.unlink(image.file_path);
+      if (sortProgressBar) {
+        sortProgressBar.update({ filename: basename(image.file_path), task: "Copying" });
+      }
+      // Do NOT update database file_path as original is not moved
+    } else {
+      // Otherwise, move/rename the file (original behavior)
+      try {
+        await fs.rename(image.file_path, newPath);
+      } catch (renameErr) {
+        await fs.copyFile(image.file_path, newPath);
+        await fs.unlink(image.file_path);
+      }
+      await db.run('UPDATE images SET file_path = ? WHERE id = ?', newPath, image.id);
+      if (sortProgressBar) {
+        sortProgressBar.update({ filename: basename(image.file_path), task: "Moving" });
+      }
     }
-    await db.run('UPDATE images SET file_path = ? WHERE id = ?', newPath, image.id);
-    console.log(chalk.green(`[INFO] Moved ${basename(image.file_path)} to ${newPath}`));
+    if (sortProgressBar) {
+      sortProgressBar.increment();
+    }
+  }
+  if (sortProgressBar) {
+    sortProgressBar.stop();
+    await new Promise((resolve)=>{
+      setTimeout(()=>resolve(true),1000);
+    })
   }
   console.log(chalk.blue('[INFO] Image sorting complete.'));
 }
@@ -209,13 +240,13 @@ async function main() {
   program
     .version('1.0.0')
     .description('Image Organization Tool')
-    .option('--sort', 'Sort images into directories based on metadata')
+    .option('--sort [path]', 'Sort images into directories based on metadata. Optionally provide a destination path to copy sorted images instead of moving them.')
     .option('-p, --port <port>', 'Port to start the server on', '3000')
     .argument('[paths...]', 'Path(s) to the directory or file(s) to scan for images.')
     .action(async (paths, options) => {
       // Check if paths are provided via arguments or --path option
       const allPaths = [...paths]; // paths from arguments
-      
+
       if (allPaths.length === 0) {
         console.error(chalk.red('[ERROR] No paths provided. Please specify at least one path.'));
         program.outputHelp();
@@ -232,7 +263,7 @@ async function main() {
         text: 'Scanning for image files',
         spinner: 'clock'
       }).start();
-      
+
       for (const path of allPaths) {
         try {
           const stats = await fs.stat(path);
@@ -249,13 +280,15 @@ async function main() {
           console.error(chalk.red(`[ERROR] Error accessing path '${path}':`), err);
         }
       }
-      
+
       scanSpinner.succeed(chalk.blue(`Found ${chalk.bold(allImageFiles.length.toString())} image files.`));
+
+      let multibar: cliProgress.MultiBar | undefined;
 
       if (allImageFiles.length > 0) {
         console.log(chalk.blue('[INFO] Starting image processing...'));
-        
-        const multibar = new cliProgress.MultiBar({
+
+        multibar = new cliProgress.MultiBar({
           format: `Processing | ${chalk.cyan('{bar}')} | {percentage}% || {value}/{total} Files || Current: {filename}`,
           barCompleteChar: '\u2588',
           barIncompleteChar: '\u2591',
@@ -270,8 +303,8 @@ async function main() {
           await processImage(file, multibar);
           progressBar.increment();
         }
-        
-        multibar.stop();
+
+        // multibar.stop(); // Keep multibar active for sorting progress
         console.log(chalk.green('[INFO] All images processed.'));
       } else {
         console.log(chalk.yellow('[INFO] No images to process.'));
@@ -282,41 +315,45 @@ async function main() {
         text: 'Finding duplicates',
         spinner: 'clock'
       }).start();
-      
+
       await findDuplicates();
       duplicatesSpinner.succeed();
-      
+
       const db = getDb();
       const duplicates = await db.all(
         'SELECT a.id as id1, b.id as id2 FROM images a, images b WHERE a.md5 = b.md5 AND a.id < b.id'
       );
-      
+
       // Display duplicate statistics in a table
       const duplicatesTable = new Table({
         head: [chalk.blue('Statistic'), chalk.blue('Value')],
         style: { head: [], border: [] }
       });
-      
+
       duplicatesTable.push(
         [chalk.bold('Total Images'), (await db.get('SELECT COUNT(*) as count FROM images')).count],
         [chalk.bold('Duplicate Pairs'), duplicates.length],
         [chalk.bold('Unique Images'), (await db.get('SELECT COUNT(*) as count FROM images WHERE is_duplicate = FALSE')).count]
       );
-      
+
       console.log(duplicatesTable.toString());
 
       const similarSpinner = ora({
         text: 'Finding similar images',
         spinner: 'clock'
       }).start();
-      
+
       await findSimilarImages();
       similarSpinner.succeed(chalk.blue('[INFO] Similarity analysis complete.'));
 
       if (options.sort) {
         console.log(chalk.blue('[INFO] Sorting enabled. Starting image sorting...'));
-        // Use the first provided path as the root for sorting
-        await sortImages(allPaths[0]);
+        // options.sort will be true if no path is provided, or the path string if provided
+        const sortDestinationPath = typeof options.sort === 'string' ? options.sort : undefined;
+        // Use the first provided path as the root for sorting if no destination path is given
+        const sortRootPath = allPaths[0];
+        // Pass the multibar instance to sortImages
+        await sortImages(sortRootPath, sortDestinationPath, multibar);
       }
 
       // Set the port if provided
