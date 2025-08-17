@@ -2,13 +2,11 @@
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 
-const DB_FILE = 'images.db';
-
 let db: Database;
 
 export async function connectDb(): Promise<void> {
   db = await open({
-    filename: DB_FILE,
+    filename: ':memory:',
     driver: sqlite3.Database,
   });
 
