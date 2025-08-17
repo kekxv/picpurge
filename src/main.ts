@@ -16,6 +16,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 // Import cli-table3 for table output
 import Table from 'cli-table3';
+// Import cli-progress for progress bar
+import cliProgress from 'cli-progress';
 
 // Define image extensions constant for use in main.ts
 const imageExtensions = [
@@ -27,12 +29,7 @@ function hexToBinary(hex: string): string {
   return hex.split('').map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('');
 }
 
-async function processImage(filePath: string) {
-  const spinner = ora({
-    text: `Processing ${basename(filePath)}`,
-    spinner: 'clock'
-  }).start();
-  
+async function processImage(filePath: string, multibar: cliProgress.MultiBar) {
   try {
     const fileBuffer = await fs.readFile(filePath);
     const stat = await fs.stat(filePath);
@@ -51,7 +48,9 @@ async function processImage(filePath: string) {
         await fs.unlink(filePath);
       }
       
-      spinner.info(chalk.yellow(`Moved ${basename(filePath)} to Recycle bin (size < 10KB).`));
+      const message = chalk.yellow(`Moved ${basename(filePath)} to Recycle bin (size < 10KB).`);
+      const messageBar = multibar.create(1, 1, { format: message });
+      multibar.remove(messageBar);
       return;
     }
 
@@ -68,7 +67,9 @@ async function processImage(filePath: string) {
         exifData = parser.parse();
       } catch (exifError) {
         const message = exifError instanceof Error ? exifError.message : String(exifError);
-        spinner.warn(chalk.yellow(`Could not parse EXIF data for ${basename(filePath)}: ${message}`));
+        const formattedMessage = chalk.yellow(`Could not parse EXIF data for ${basename(filePath)}: ${message}`);
+        const messageBar = multibar.create(1, 1, { format: formattedMessage });
+        multibar.remove(messageBar);
         // exifData will remain null, and processing will continue
       }
     }
@@ -99,10 +100,11 @@ async function processImage(filePath: string) {
       phash,
       thumbnailPath
     );
-    spinner.succeed(chalk.green(`Processed ${basename(filePath)}.`));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    spinner.fail(chalk.red(`Error processing ${basename(filePath)}: ${message}`));
+    const formattedMessage = chalk.red(`Error processing ${basename(filePath)}: ${message}`);
+    const messageBar = multibar.create(1, 1, { format: formattedMessage });
+    multibar.remove(messageBar);
   }
 }
 
@@ -250,20 +252,30 @@ async function main() {
       
       scanSpinner.succeed(chalk.blue(`Found ${chalk.bold(allImageFiles.length.toString())} image files.`));
 
-      console.log(chalk.blue('[INFO] Starting image processing...'));
-      const processSpinner = ora({
-        text: 'Processing images',
-        spinner: 'clock'
-      }).start();
-      
-      let processedCount = 0;
-      for (const file of allImageFiles) {
-        await processImage(file);
-        processedCount++;
-        processSpinner.text = `Processing images (${processedCount}/${allImageFiles.length})`;
+      if (allImageFiles.length > 0) {
+        console.log(chalk.blue('[INFO] Starting image processing...'));
+        
+        const multibar = new cliProgress.MultiBar({
+          format: `Processing | ${chalk.cyan('{bar}')} | {percentage}% || {value}/{total} Files || Current: {filename}`,
+          barCompleteChar: '\u2588',
+          barIncompleteChar: '\u2591',
+          hideCursor: true,
+          clearOnComplete: true,
+        });
+
+        const progressBar = multibar.create(allImageFiles.length, 0, { filename: "N/A" });
+
+        for (const file of allImageFiles) {
+          progressBar.update({ filename: basename(file) });
+          await processImage(file, multibar);
+          progressBar.increment();
+        }
+        
+        multibar.stop();
+        console.log(chalk.green('[INFO] All images processed.'));
+      } else {
+        console.log(chalk.yellow('[INFO] No images to process.'));
       }
-      
-      processSpinner.succeed(chalk.green('[INFO] All images processed.'));
 
       // Create a table for duplicate statistics
       const duplicatesSpinner = ora({

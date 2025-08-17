@@ -3,16 +3,21 @@
   "version": "1.0.0",
   "description": "- 使用typescript开发 - 使用sqlite3作为临时数据库 - 传入参数路径，自动遍历路径下的所有图像，包括但不限于png，jpg，bmp，cr2等等常见的图片格式，存入数据库 - 读取图像的信息头，更新到数据库对应字段，也可以和上一步一起存入 - 读取文件大小，以及计算md5，然后更新到数据库对应数据记录 - 为图像生成一个固定的大小，例如320x320，然后通过`哈希算法`、`结构相似性(SSIM)`计算出特征，更新到对应字段，用于后续对比 - 要注意计算特征和md5的需要异步处理，免得卡死，多线程、worker等 - 创建一个目录：Recycle，作为回收站，将小于10k的文件全部移动进去 - 数据准备完成之后，开始根据文件大小以及md5统计出重复文件，结果存放到数据库 - 如果传入参数--sort排序要求，则根据图片信息头的设备型号、设备制造商、镜头型号进行排序，如果内容创建时间有效，则使用内容创建时间，格式为：yyyyMMddHHmmss.序号.文件格式，序号防止文件冲突，6位，不够的前面补0 - 重复文件计算完成之后，开始根据`哈希算法`、`结构相似性(SSIM)`计算出特征进行相似图片分析，将结果存放到数据库 - 处理完成之后，打开一个web服务，显示重复文件、相似文件的结果展示，可以选择保留或者删除重复文件，删除的时候，放到Recycle目录，不用真的删除",
   "main": "dist/main.js",
+  "bin": {
+    "image_util": "dist/main.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prestart": "rm -rf dist",
-    "start": "tsc && node dist/main.js"
+    "build": "tsc",
+    "postbuild": "echo \"#!/usr/bin/env node\\n\" | cat - dist/main.js > temp && mv temp dist/main.js",
+    "start": "npm run build && node dist/main.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
     "@types/express": "^5.0.3",
     "@types/node": "^24.2.1",
     "ts-node": "^10.9.2",
@@ -20,6 +25,7 @@
   },
   "dependencies": {
     "chalk": "^5.5.0",
+    "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.0",
     "exif-parser": "^0.1.12",
