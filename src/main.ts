@@ -337,6 +337,7 @@ async function main() {
       );
 
       console.log(duplicatesTable.toString());
+      console.log("");
 
       const similarSpinner = ora({
         text: 'Finding similar images',

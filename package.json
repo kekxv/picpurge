@@ -20,6 +20,7 @@
     "@types/cli-progress": "^3.11.6",
     "@types/express": "^5.0.3",
     "@types/node": "^24.2.1",
+    "@types/piexifjs": "^1.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   },
@@ -33,6 +34,7 @@
     "hamming-distance": "^1.0.0",
     "imghash": "^1.1.0",
     "ora": "^8.2.0",
+    "piexifjs": "^1.0.6",
     "sharp": "^0.34.3",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"

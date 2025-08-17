@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import sharp from 'sharp';
 import imghash from 'imghash';
 import ExifParser from 'exif-parser';
+import piexif from 'piexifjs';
 
 if (!parentPort) {
   throw new Error('This file should be run as a worker thread.');
@@ -12,8 +13,21 @@ if (!parentPort) {
 async function processImage(filePath: string) {
   try {
     const fileBuffer = await fs.readFile(filePath);
+    let bufferForHashing = fileBuffer;
 
-    const md5 = createHash('md5').update(fileBuffer).digest('hex');
+    const lowerCaseFilePath = filePath.toLowerCase();
+    if (lowerCaseFilePath.endsWith('.jpg') || lowerCaseFilePath.endsWith('.jpeg')) {
+      try {
+        const data = fileBuffer.toString('binary');
+        const exifRemoved = piexif.remove(data);
+        bufferForHashing = Buffer.from(exifRemoved, 'binary');
+      } catch (e) {
+        // Not a valid JPEG with EXIF, or another error.
+        // Fallback to hashing the whole file.
+      }
+    }
+
+    const md5 = createHash('md5').update(bufferForHashing).digest('hex');
     const phash = await imghash.hash(filePath);
 
     const sharpInstance = sharp(fileBuffer);
@@ -27,6 +41,7 @@ async function processImage(filePath: string) {
 
     const result = {
       md5,
+      size: bufferForHashing.length,
       phash,
       width: metadata.width,
       height: metadata.height,
@@ -45,3 +60,5 @@ async function processImage(filePath: string) {
 parentPort.on('message', (filePath: string) => {
   processImage(filePath);
 });
+
+parentPort.postMessage('ready');
