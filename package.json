@@ -1,6 +1,6 @@
 {
   "name": "picpurge",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A powerful tool for organizing, deduplicating, and managing your image collection with a web-based interface.",
   "main": "dist/main.js",
   "bin": {
