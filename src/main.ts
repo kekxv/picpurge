@@ -135,7 +135,7 @@ async function findSimilarImages() {
   const phashThreshold = 3; // Reduced from 5 to 3 for stricter matching
 
   // For size comparison, we'll use a stricter threshold
-  const sizeThreshold = 0.05; // 5% difference in size allowed
+  const sizeThreshold = 0.5; // 50% difference in size allowed
 
   for (let i = 0; i < images.length; i++) {
     const image1 = images[i];
