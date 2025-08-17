@@ -3,12 +3,56 @@ import { getDb } from './database.js';
 import { promises as fs } from 'fs';
 import { createReadStream, createWriteStream } from 'fs';
 import { join, basename, extname } from 'path';
+import sharp from 'sharp';
+
+// In-memory storage for thumbnails (when size is under limit)
+const thumbnailMemoryStore: Map<string, Buffer> = new Map();
 
 const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use('/thumbnails', express.static(join(process.cwd(), 'thumbnails')));
+// Serve static files from src directory
 app.use(express.static(join(process.cwd(), 'src')));
+
+// Serve thumbnails - handle both file-based and memory-based thumbnails
+app.get('/thumbnails/:md5', async (req: Request, res: Response) => {
+  const { md5 } = req.params;
+  if(!md5){
+      return res.status(404).send('Thumbnail file not found');
+  }
+  
+  // Check if thumbnail is in memory
+  if (thumbnailMemoryStore.has(md5||"")) {
+    const thumbnailBuffer = thumbnailMemoryStore.get(md5||"")!;
+    res.set('Content-Type', 'image/webp');
+    return res.send(thumbnailBuffer);
+  }
+  
+  // If not in memory, check if it's in the temporary directory
+  // We'll need to find the actual file path from the database
+  const db = getDb();
+  const imageRecord: any = await db.get('SELECT thumbnail_path FROM images WHERE md5 = ?', md5);
+  
+  if (!imageRecord) {
+    return res.status(404).send('Thumbnail not found');
+  }
+  
+  const thumbnailPath: string = imageRecord.thumbnail_path;
+  
+  // Check if it's a file path (not memory path)
+  if (thumbnailPath && !thumbnailPath.startsWith('memory://')) {
+    try {
+      await fs.access(thumbnailPath);
+      return res.sendFile(thumbnailPath);
+    } catch (err) {
+      // File doesn't exist
+      return res.status(404).send('Thumbnail file not found');
+    }
+  }
+  
+  // If we get here, it should be in memory but wasn't found
+  return res.status(404).send('Thumbnail not found');
+});
 
 app.get('/', (req: Request, res: Response) => {
   res.sendFile(join(process.cwd(), 'src', 'index.html'));
@@ -32,14 +76,14 @@ app.get('/api/images', async (req: Request, res: Response) => {
         return new Date(create_date);
     }
     if (typeof create_date === 'string') {
-        let dateStr = create_date;
-        if (/^\d{4}:\d{2}:\d{2}/.test(dateStr)) {
-            dateStr = dateStr.substring(0, 10).replace(/:/g, '-') + dateStr.substring(10);
-        }
-        const parsedDate = new Date(dateStr);
-        if (!isNaN(parsedDate.getTime())) {
-            return parsedDate;
-        }
+      let dateStr = create_date;
+      if (/^\d{4}:\d{2}:\d{2}/.test(dateStr)) {
+        dateStr = dateStr.substring(0, 10).replace(/:/g, '-') + dateStr.substring(10);
+      }
+      const parsedDate = new Date(dateStr);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
     }
     return null;
   }
@@ -47,7 +91,7 @@ app.get('/api/images', async (req: Request, res: Response) => {
   function getSortKey(image: any): string | number {
     const date = parseCreateDate(image.create_date);
     if (date) {
-        return date.getTime();
+      return date.getTime();
     }
     return `${image.device_make || ''}${image.device_model || ''}${image.lens_model || ''}`;
   }
@@ -218,6 +262,16 @@ app.post('/api/recycle', async (req: Request, res: Response) => {
     res.status(500).send({ error: (error as Error).message });
   }
 });
+
+// Add thumbnail to memory store
+export function addThumbnailToMemory(md5: string, buffer: Buffer) {
+  thumbnailMemoryStore.set(md5, buffer);
+}
+
+// Remove thumbnail from memory store
+export function removeThumbnailFromMemory(md5: string) {
+  thumbnailMemoryStore.delete(md5);
+}
 
 app.get('/api/image/:id', async (req: Request, res: Response) => {
   const imageId = req.params.id;

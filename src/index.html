@@ -284,7 +284,10 @@
             <h3 class="text-xl font-serif font-semibold mb-4">Group: ${groupKey} (${groupImages.length} images)</h3>
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
               ${groupImages.map(d => {
-                const thumbnailSrc = d.thumbnail_path ? `/thumbnails/${d.thumbnail_path.split('/').pop()}` : '';
+                const thumbnailSrc = d.thumbnail_path ? 
+                  (d.thumbnail_path.startsWith('memory://') ? 
+                    `/thumbnails/${d.md5}` : 
+                    `/thumbnails/${d.thumbnail_path.split('/').pop()}`) : '';
                 const newName = generateNewName(d);
                 return `
                   <div class="bg-white rounded-xl overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300">
@@ -372,7 +375,10 @@
       container.innerHTML = `
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
           ${images.map(u => {
-            const thumbnailSrc = u.thumbnail_path ? `/thumbnails/${u.thumbnail_path.split('/').pop()}` : '';
+            const thumbnailSrc = u.thumbnail_path ? 
+              (u.thumbnail_path.startsWith('memory://') ? 
+                `/thumbnails/${u.md5}` : 
+                `/thumbnails/${u.thumbnail_path.split('/').pop()}`) : '';
             const newName = generateNewName(u);
             return `
               <div class="bg-white rounded-xl overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300">
@@ -514,7 +520,10 @@
             <h3 class="text-lg font-semibold mb-2">Group: ${groupKey} (${groupImages.length} images)</h3>
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               ${groupImages.map(s => {
-                const thumbnailSrc = s.thumbnail_path ? `/thumbnails/${s.thumbnail_path.split('/').pop()}` : '';
+                const thumbnailSrc = s.thumbnail_path ? 
+                  (s.thumbnail_path.startsWith('memory://') ? 
+                    `/thumbnails/${s.md5}` : 
+                    `/thumbnails/${s.thumbnail_path.split('/').pop()}`) : '';
                 const newName = generateNewName(s);
                 return `
                   <div class="border rounded-lg overflow-hidden shadow-md">
@@ -543,7 +552,10 @@
       container.innerHTML = `
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           ${images.map(u => {
-            const thumbnailSrc = u.thumbnail_path ? `/thumbnails/${u.thumbnail_path.split('/').pop()}` : '';
+            const thumbnailSrc = u.thumbnail_path ? 
+              (u.thumbnail_path.startsWith('memory://') ? 
+                `/thumbnails/${u.md5}` : 
+                `/thumbnails/${u.thumbnail_path.split('/').pop()}`) : '';
             const newName = generateNewName(u);
             return `
               <div class="border rounded-lg overflow-hidden shadow-md">
