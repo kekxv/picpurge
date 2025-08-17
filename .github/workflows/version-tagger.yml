@@ -4,63 +4,58 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'package.json'
 
 jobs:
-  check-and-tag:
+  tag-if-needed:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 允许写入内容，以便推送标签
+      contents: write # 必须有写权限才能推送标签
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取所有历史记录，以便比较 package.json
+          fetch-depth: 0
 
-      - name: Get current package.json version
-        id: get_current_version
+      - name: Get package.json version
+        id: get_version
         run: |
-          CURRENT_VERSION=$(jq -r .version package.json)
-          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          VERSION=$(jq -r .version package.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Get previous package.json version
-        id: get_previous_version
-        run: |
-          # 检查 package.json 是否存在于上一个提交中
-          if git show HEAD~1:package.json &> /dev/null; then
-            PREVIOUS_VERSION=$(git show HEAD~1:package.json | jq -r .version)
-            echo "previous_version=$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
-          else
-            echo "package.json not found in previous commit, assuming first commit or new file."
-            echo "previous_version=" >> "$GITHUB_OUTPUT" # 如果未找到，则设置为空
-          fi
-
-      - name: Compare versions and create tag
-        run: |
-          CURRENT_VERSION="${{ steps.get_current_version.outputs.current_version }}"
-          PREVIOUS_VERSION="${{ steps.get_previous_version.outputs.previous_version }}"
-          TAG_NAME="v$CURRENT_VERSION"
-
-          echo "Current version: $CURRENT_VERSION"
-          echo "Previous version: $PREVIOUS_VERSION"
-          echo "Tag name to check/create: $TAG_NAME"
-
-          if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
-            echo "package.json version has changed from $PREVIOUS_VERSION to $CURRENT_VERSION."
-
-            # 检查标签是否已存在
-            if git tag -l "$TAG_NAME" | grep -q "$TAG_NAME"; then
-              echo "Tag $TAG_NAME already exists. No action needed."
-            else
-              echo "Tag $TAG_NAME does not exist. Creating and pushing tag."
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git tag "$TAG_NAME"
-              git push origin "$TAG_NAME"
-              echo "Successfully created and pushed tag $TAG_NAME."
-            fi
-          else
-            echo "package.json version has not changed. No action needed."
-          fi
+      - name: Check if tag exists and create if not
+        # 将两个 token 都传递给步骤的环境变量
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 推送标签所需
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIONS_PAT: ${{ secrets.ACTIONS_PAT }}
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG_NAME="v$VERSION"
+
+          echo "Checking for tag: $TAG_NAME"
+
+          if git tag -l "$TAG_NAME" | grep -q "$TAG_NAME"; then
+            echo "Tag $TAG_NAME already exists. No action needed."
+          else
+            echo "Tag $TAG_NAME does not exist. Creating and pushing tag..."
+          
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG_NAME"
+          
+            # 核心逻辑：检查 ACTIONS_PAT 是否存在且不为空
+            if [ -n "$ACTIONS_PAT" ]; then
+              echo "ACTIONS_PAT found. Pushing with PAT to trigger subsequent workflows..."
+              # 使用 PAT 推送，这可以触发其他工作流
+              # 注意：${{ github.repository }} 是一个动态变量，例如 "owner/repo-name"
+              git push https://x-access-token:${ACTIONS_PAT}@github.com/${{ github.repository }}.git "$TAG_NAME"
+            else
+              echo "ACTIONS_PAT not found. Pushing with GITHUB_TOKEN (will not trigger subsequent workflows)..."
+              # 回退到使用 GITHUB_TOKEN 推送
+              git push origin "$TAG_NAME"
+            fi
+          
+            echo "Successfully created and pushed tag $TAG_NAME."
+          fi
