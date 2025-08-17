@@ -2,17 +2,21 @@ import express, { Request, Response } from 'express';
 import { getDb } from './database.js';
 import { promises as fs } from 'fs';
 import { createReadStream, createWriteStream } from 'fs';
-import { join, basename, extname } from 'path';
+import { join, basename, extname, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 
 // In-memory storage for thumbnails (when size is under limit)
 const thumbnailMemoryStore: Map<string, Buffer> = new Map();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Serve static files from src directory
-app.use(express.static(join(process.cwd(), 'src')));
+app.use(express.static(__dirname));
 
 // Serve thumbnails - handle both file-based and memory-based thumbnails
 app.get('/thumbnails/:md5', async (req: Request, res: Response) => {
@@ -33,7 +37,7 @@ app.get('/thumbnails/:md5', async (req: Request, res: Response) => {
 });
 
 app.get('/', (req: Request, res: Response) => {
-  res.sendFile(join(process.cwd(), 'src', 'index.html'));
+  res.sendFile(join(__dirname, 'index.html'));
 });
 
 app.get('/api/images', async (req: Request, res: Response) => {
