@@ -198,7 +198,7 @@
       const toastMessage = document.getElementById('toastMessage');
       
       toastMessage.textContent = message;
-      toast.className = `fixed top-5 right-5 p-4 rounded-lg text-white ${
+      toast.className = `fixed top-5 right-5 p-4 rounded-lg text-white z-[100] ${
         isSuccess ? 'bg-green-500' : 'bg-red-500'
       }`;
       
