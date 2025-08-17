@@ -10,6 +10,7 @@ import hamming from 'hamming-distance';
 import { startServer } from './server.js';
 import ExifParser from 'exif-parser';
 import os from 'os';
+import readline from 'readline';
 
 // Import chalk for colorful output
 import chalk from 'chalk';
@@ -30,13 +31,13 @@ function hexToBinary(hex: string): string {
   return hex.split('').map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('');
 }
 
-async function processImage(filePath: string, multibar: cliProgress.MultiBar) {
+async function processImage(filePath: string, multibar: cliProgress.MultiBar, recyclePath: string) {
   try {
     const fileBuffer = await fs.readFile(filePath);
     const stat = await fs.stat(filePath);
 
     if (stat.size < 10 * 1024) {
-      const recycleDir = join(process.cwd(), 'Recycle');
+      const recycleDir = recyclePath; // Use the provided recyclePath
       await fs.mkdir(recycleDir, { recursive: true });
       const destPath = join(recycleDir, basename(filePath));
 
@@ -247,6 +248,7 @@ async function main() {
     .description('Image Organization Tool')
     .option('--sort [path]', 'Sort images into directories based on metadata. Optionally provide a destination path to copy sorted images instead of moving them.')
     .option('-p, --port <port>', 'Port to start the server on', '3000')
+    .option('--recycle-path <path>', 'Specify the path for the Recycle directory.') // New option
     .argument('[paths...]', 'Path(s) to the directory or file(s) to scan for images.')
     .action(async (paths, options) => {
       // Check if paths are provided via arguments or --path option
@@ -262,6 +264,29 @@ async function main() {
 
       await connectDb();
       console.log(chalk.green('[INFO] Database connected.'));
+
+      // Handle recycle path
+      let recyclePath = options.recyclePath;
+      if (!recyclePath) {
+        const defaultRecyclePath = join(process.cwd(), 'Recycle');
+        console.log(chalk.yellow(`[WARN] Recycle directory not specified. Defaulting to: ${defaultRecyclePath}`));
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
+        const answer = await new Promise<string>(resolve => {
+          rl.question('Continue with this path? (y/N): ', resolve);
+        });
+        rl.close();
+
+        if (answer.toLowerCase() !== 'y') {
+          console.log(chalk.red('[INFO] Exiting.'));
+          process.exit(0);
+        }
+        recyclePath = defaultRecyclePath;
+      }
+      console.log(chalk.blue(`[INFO] Using Recycle directory: ${recyclePath}`));
+
 
       let allImageFiles: string[] = [];
       const scanSpinner = ora({
@@ -305,7 +330,7 @@ async function main() {
 
         for (const file of allImageFiles) {
           progressBar.update({ filename: basename(file) });
-          await processImage(file, multibar);
+          await processImage(file, multibar, recyclePath); // Pass recyclePath
           progressBar.increment();
         }
 
