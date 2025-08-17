@@ -25,37 +25,9 @@ const imageExtensions = [
   '.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.webp', '.cr2',
 ];
 
-// Global variable to track temporary thumbnail directory
-let tempThumbnailDir: string | null = null;
-let thumbnailMemorySize = 0;
-const THUMBNAIL_MEMORY_LIMIT = 10 * 1024 * 1024; // 10MB limit
-
 // Function to convert hex to binary string
 function hexToBinary(hex: string): string {
   return hex.split('').map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('');
-}
-
-// Function to get or create temporary thumbnail directory
-async function getTempThumbnailDir(): Promise<string> {
-  if (!tempThumbnailDir) {
-    tempThumbnailDir = await fs.mkdtemp(join(os.tmpdir(), 'image-thumbnails-'));
-    console.log(chalk.blue(`[INFO] Created temporary thumbnail directory: ${tempThumbnailDir}`));
-  }
-  return tempThumbnailDir;
-}
-
-// Function to clean up temporary thumbnail directory
-async function cleanupTempThumbnails() {
-  if (tempThumbnailDir) {
-    try {
-      await fs.rm(tempThumbnailDir, { recursive: true, force: true });
-      console.log(chalk.green(`[INFO] Cleaned up temporary thumbnail directory: ${tempThumbnailDir}`));
-    } catch (err) {
-      console.error(chalk.red(`[ERROR] Failed to clean up temporary thumbnail directory: ${err}`));
-    }
-    tempThumbnailDir = null;
-    thumbnailMemorySize = 0;
-  }
 }
 
 async function processImage(filePath: string, multibar: cliProgress.MultiBar) {
@@ -110,21 +82,12 @@ async function processImage(filePath: string, multibar: cliProgress.MultiBar) {
 
     // Generate thumbnail in memory
     const thumbnailBuffer = await sharp(fileBuffer).resize(320, 320).webp().toBuffer();
-    thumbnailMemorySize += thumbnailBuffer.length;
 
-    // Check if we need to write thumbnails to disk
-    let thumbnailPath: string;
-    if (thumbnailMemorySize > THUMBNAIL_MEMORY_LIMIT) {
-      const thumbnailDir = await getTempThumbnailDir();
-      thumbnailPath = join(thumbnailDir, `${basename(filePath, extname(filePath))}.webp`);
-      await fs.writeFile(thumbnailPath, thumbnailBuffer);
-    } else {
-      // Store thumbnail in memory (we'll handle this in the server)
-      thumbnailPath = `memory://${md5}`;
-      // Add to memory store for server to access
-      const { addThumbnailToMemory } = await import('./server.js');
-      addThumbnailToMemory(md5, thumbnailBuffer);
-    }
+    // Store thumbnail in memory
+    const thumbnailPath = `memory://${md5}`;
+    // Add to memory store for server to access
+    const { addThumbnailToMemory } = await import('./server.js');
+    addThumbnailToMemory(md5, thumbnailBuffer);
 
     const db = getDb();
     await db.run(
@@ -416,9 +379,6 @@ async function main() {
             await db.close();
             console.log(chalk.green('[INFO] Database connection closed.'));
           }
-
-          // Clean up temporary thumbnails directory
-          await cleanupTempThumbnails();
 
         } catch (err) {
           console.error('[ERROR] Error during cleanup:', err);

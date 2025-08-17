@@ -28,29 +28,7 @@ app.get('/thumbnails/:md5', async (req: Request, res: Response) => {
     return res.send(thumbnailBuffer);
   }
   
-  // If not in memory, check if it's in the temporary directory
-  // We'll need to find the actual file path from the database
-  const db = getDb();
-  const imageRecord: any = await db.get('SELECT thumbnail_path FROM images WHERE md5 = ?', md5);
-  
-  if (!imageRecord) {
-    return res.status(404).send('Thumbnail not found');
-  }
-  
-  const thumbnailPath: string = imageRecord.thumbnail_path;
-  
-  // Check if it's a file path (not memory path)
-  if (thumbnailPath && !thumbnailPath.startsWith('memory://')) {
-    try {
-      await fs.access(thumbnailPath);
-      return res.sendFile(thumbnailPath);
-    } catch (err) {
-      // File doesn't exist
-      return res.status(404).send('Thumbnail file not found');
-    }
-  }
-  
-  // If we get here, it should be in memory but wasn't found
+  // If not in memory, return 404
   return res.status(404).send('Thumbnail not found');
 });
 
