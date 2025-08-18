@@ -70,12 +70,8 @@ app.get('/api/images', async (req: Request, res: Response) => {
     return null;
   }
 
-  function getSortKey(image: any): string | number {
-    const date = parseCreateDate(image.create_date);
-    if (date) {
-      return date.getTime();
-    }
-    return `${image.device_make || ''}${image.device_model || ''}${image.lens_model || ''}`;
+  function getSortKey(image: any): number {
+    return (image.width || 0) * (image.height || 0);
   }
 
   const duplicateGroups: { [key: string]: any[] } = {};
@@ -149,10 +145,14 @@ app.get('/api/images', async (req: Request, res: Response) => {
   });
 
   uniqueImages.sort((a, b) => {
-    const keyA = getSortKey(a);
-    const keyB = getSortKey(b);
-    if (keyA < keyB) return -1;
-    if (keyA > keyB) return 1;
+    const dateA = parseCreateDate(a.create_date);
+    const dateB = parseCreateDate(b.create_date);
+
+    if (dateA && dateB) {
+      if (dateA.getTime() < dateB.getTime()) return -1; // Sort by create_date in ascending order
+      if (dateA.getTime() > dateB.getTime()) return 1;
+    }
+    // Handle cases where create_date might be null or invalid, keep original order
     return 0;
   });
 
@@ -166,8 +166,8 @@ app.get('/api/images', async (req: Request, res: Response) => {
     const masterB = groupB[0];
     const keyA = getSortKey(masterA);
     const keyB = getSortKey(masterB);
-    if (keyA < keyB) return -1;
-    if (keyA > keyB) return 1;
+    if (keyA > keyB) return -1; // Sort in descending order
+    if (keyA < keyB) return 1;
     return 0;
   });
 
@@ -181,8 +181,8 @@ app.get('/api/images', async (req: Request, res: Response) => {
     const firstImageB = groupB[0];
     const keyA = getSortKey(firstImageA);
     const keyB = getSortKey(firstImageB);
-    if (keyA < keyB) return -1;
-    if (keyA > keyB) return 1;
+    if (keyA > keyB) return -1; // Sort in descending order
+    if (keyA < keyB) return 1;
     return 0;
   });
 
