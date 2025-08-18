@@ -1,16 +1,15 @@
 import { Command } from 'commander';
 import { connectDb, getDb } from './database.js';
 import { findImageFiles } from './walker.js';
-import { promises as fs, constants, createReadStream } from 'fs'; // Import 'constants' for access check
+import { promises as fs } from 'fs';
 import { basename, join, extname, dirname } from 'path';
-import { createHash } from 'crypto';
 import sharp from 'sharp';
-import imghash from 'imghash';
 import hamming from 'hamming-distance';
 import { startServer } from './server.js';
-import ExifParser from 'exif-parser';
 import os from 'os';
 import readline from 'readline';
+import { Worker } from 'worker_threads';
+import { fileURLToPath } from 'url';
 
 // Import chalk for colorful output
 import chalk from 'chalk';
@@ -20,6 +19,9 @@ import ora from 'ora';
 import Table from 'cli-table3';
 // Import cli-progress for progress bar
 import cliProgress from 'cli-progress';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Define image extensions constant for use in main.ts
 const imageExtensions = [
@@ -31,88 +33,99 @@ function hexToBinary(hex: string): string {
   return hex.split('').map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('');
 }
 
-async function processImage(filePath: string, multibar: cliProgress.MultiBar, recyclePath: string) {
-  try {
-    const fileBuffer = await fs.readFile(filePath);
-    const stat = await fs.stat(filePath);
+async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: number, multibar: cliProgress.MultiBar, recyclePath: string) {
+  const numWorkers = os.cpus().length > 1 ? os.cpus().length - 1 : 1;
+  console.log(chalk.blue(`[INFO] Using ${numWorkers} worker threads.`));
 
-    if (stat.size < 10 * 1024) {
-      const recycleDir = recyclePath; // Use the provided recyclePath
-      await fs.mkdir(recycleDir, { recursive: true });
-      const destPath = join(recycleDir, basename(filePath));
+  const db = getDb();
+  const progressBar = multibar.create(totalFiles, 0, { filename: "N/A" });
+  let processedCount = 0;
 
-      try {
-        // Try rename first (more efficient for same device)
-        await fs.rename(filePath, destPath);
-      } catch (renameErr) {
-        // If rename fails (e.g., cross-device), use copy + unlink
-        await fs.copyFile(filePath, destPath);
-        await fs.unlink(filePath);
-      }
+  return new Promise<void>((resolve, reject) => {
+    const workers = new Set<Worker>();
 
-      const message = chalk.yellow(`Moved ${basename(filePath)} to Recycle bin (size < 10KB).`);
-      const messageBar = multibar.create(1, 1, { format: message });
-      multibar.remove(messageBar);
-      return;
-    }
+    const processFile = async (filePath: string) => {
+      const worker = new Worker(join(__dirname, 'worker.js'));
+      workers.add(worker);
 
-    const md5 = `${createHash('md5').update(fileBuffer).digest('hex')}-${fileBuffer.length}`;
-    const phash = await imghash.hash(filePath);
+      worker.on('message', async (message) => {
+        if (message.filePath) {
+            if (message.moved) {
+              const formattedMessage = chalk.yellow(`Moved ${basename(message.filePath)} to Recycle bin (size < 10KB).`);
+              const messageBar = multibar.create(1, 1, { format: formattedMessage });
+              multibar.remove(messageBar);
+            } else if (message.error) {
+              const formattedMessage = chalk.red(`Error processing ${basename(message.filePath)}: ${message.error}`);
+              const messageBar = multibar.create(1, 1, { format: formattedMessage });
+              multibar.remove(messageBar);
+            } else if (message.result) {
+              const { filePath, result } = message;
+              const { md5, size, phash, width, height, deviceMake, deviceModel, lensModel, createDate } = result;
 
-    const sharpInstance = sharp(fileBuffer);
-    const metadata = await sharpInstance.metadata();
+              const stat = await fs.stat(filePath);
+              let create_date = createDate || stat.birthtime;
 
-    let exifData = null;
-    if (metadata.exif) {
-      try {
-        const parser = ExifParser.create(metadata.exif);
-        exifData = parser.parse();
-      } catch (exifError) {
-        const message = exifError instanceof Error ? exifError.message : String(exifError);
-        const formattedMessage = chalk.yellow(`Could not parse EXIF data for ${basename(filePath)}: ${message}`);
+              let thumbnailPath: string | null = null;
+            try {
+              const thumbnailBuffer = await sharp(filePath).resize(320, 320).webp().toBuffer();
+              const { addThumbnailToMemory } = await import('./server.js');
+              thumbnailPath = `memory://${md5}`;
+              addThumbnailToMemory(md5, thumbnailBuffer);
+            } catch (thumbnailError) {
+              const formattedMessage = chalk.yellow(`[WARN] Could not generate thumbnail for ${basename(filePath)}: ${thumbnailError instanceof Error ? thumbnailError.message : String(thumbnailError)}`);
+              const messageBar = multibar.create(1, 1, { format: formattedMessage });
+              multibar.remove(messageBar);
+              // thumbnailPath remains null
+            }
+
+              await db.run(
+                'INSERT OR IGNORE INTO images (file_path, file_name, file_size, md5, image_width, image_height, device_make, device_model, lens_model, create_date, phash, thumbnail_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                filePath, basename(filePath), size, md5, width, height, deviceMake, deviceModel, lensModel, create_date, phash, thumbnailPath
+              );
+            }
+            processedCount++;
+            progressBar.update(processedCount, { filename: basename(message.filePath) });
+            
+            worker.terminate();
+            workers.delete(worker);
+
+            const next = await imageFiles.next();
+            if (!next.done) {
+              processFile(next.value);
+            } else if (workers.size === 0) {
+              resolve();
+            }
+        }
+      });
+
+      worker.on('error', async (err) => {
+        const formattedMessage = chalk.red(`Worker error for ${filePath}: ${err.message}`);
         const messageBar = multibar.create(1, 1, { format: formattedMessage });
         multibar.remove(messageBar);
-        // exifData will remain null, and processing will continue
-      }
-    }
+        worker.terminate();
+        workers.delete(worker);
 
-    let create_date = exifData?.tags?.DateTimeOriginal;
-    if (!create_date) {
-        create_date = stat.birthtime;
-    }
+        const next = await imageFiles.next();
+        if (!next.done) {
+          processFile(next.value);
+        } else if (workers.size === 0) {
+          resolve();
+        }
+      });
 
-    // Generate thumbnail in memory
-    const thumbnailBuffer = await sharp(fileBuffer).resize(320, 320).webp().toBuffer();
+      worker.postMessage({ filePath, recyclePath });
+    };
 
-    // Store thumbnail in memory
-    const thumbnailPath = `memory://${md5}`;
-    // Add to memory store for server to access
-    const { addThumbnailToMemory } = await import('./server.js');
-    addThumbnailToMemory(md5, thumbnailBuffer);
-
-    const db = getDb();
-    await db.run(
-      'INSERT OR IGNORE INTO images (file_path, file_name, file_size, md5, image_width, image_height, device_make, device_model, lens_model, create_date, phash, thumbnail_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      filePath,
-      basename(filePath),
-      stat.size,
-      md5,
-      metadata.width,
-      metadata.height,
-      exifData?.tags?.Make,
-      exifData?.tags?.Model,
-      exifData?.tags?.LensModel,
-      create_date,
-      phash,
-      thumbnailPath
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const formattedMessage = chalk.red(`Error processing ${basename(filePath)}: ${message}`);
-    const messageBar = multibar.create(1, 1, { format: formattedMessage });
-    multibar.remove(messageBar);
-  }
+    (async () => {
+        for (let i = 0; i < numWorkers; i++) {
+            const next = await imageFiles.next();
+            if (next.done) break;
+            processFile(next.value);
+        }
+    })();
+  });
 }
+
 
 async function findDuplicates() {
   const db = getDb();
@@ -287,28 +300,25 @@ async function main() {
       }
       console.log(chalk.blue(`[INFO] Using Recycle directory: ${recyclePath}`));
 
-
-      let allImageFiles: string[] = [];
       const scanSpinner = ora({
         text: 'Scanning for image files',
         spinner: 'clock'
       }).start();
 
+      const allImageFiles: string[] = [];
       for (const path of allPaths) {
-        try {
-          const stats = await fs.stat(path);
-          if (stats.isDirectory()) {
-            const imageFiles = await findImageFiles(path);
-            allImageFiles = [...allImageFiles, ...imageFiles];
-          } else if (stats.isFile() && imageExtensions.includes(extname(path).toLowerCase())) {
-            // If it's a single file and it's an image, add it to the list
-            allImageFiles.push(path);
-          } else {
-            console.warn(chalk.yellow(`[WARN] Path '${path}' is neither a directory nor a recognized image file. Skipping.`));
+          try {
+              const stats = await fs.stat(path);
+              if (stats.isDirectory()) {
+                  for await (const file of findImageFiles(path)) {
+                      allImageFiles.push(file);
+                  }
+              } else if (stats.isFile() && imageExtensions.includes(extname(path).toLowerCase())) {
+                  allImageFiles.push(path);
+              }
+          } catch (err) {
+              console.error(chalk.red(`[ERROR] Error accessing path '${path}':`), err);
           }
-        } catch (err) {
-          console.error(chalk.red(`[ERROR] Error accessing path '${path}':`), err);
-        }
       }
 
       scanSpinner.succeed(chalk.blue(`Found ${chalk.bold(allImageFiles.length.toString())} image files.`));
@@ -325,16 +335,16 @@ async function main() {
           hideCursor: true,
           clearOnComplete: true,
         });
+        
+        const imageFileGenerator = (async function*() {
+            for (const file of allImageFiles) {
+                yield file;
+            }
+        })();
 
-        const progressBar = multibar.create(allImageFiles.length, 0, { filename: "N/A" });
+        await runProcessing(imageFileGenerator, allImageFiles.length, multibar, recyclePath);
 
-        for (const file of allImageFiles) {
-          progressBar.update({ filename: basename(file) });
-          await processImage(file, multibar, recyclePath); // Pass recyclePath
-          progressBar.increment();
-        }
-
-        // multibar.stop(); // Keep multibar active for sorting progress
+        multibar.stop();
         console.log(chalk.green('[INFO] All images processed.'));
       } else {
         console.log(chalk.yellow('[INFO] No images to process.'));

@@ -8,24 +8,18 @@ const imageExtensions = [
   '.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.webp', '.cr2',
 ];
 
-export async function findImageFiles(dir: string): Promise<string[]> {
+export async function* findImageFiles(dir: string): AsyncGenerator<string> {
   try {
     const dirents = await readdir(dir, { withFileTypes: true });
-    const files = await Promise.all(
-      dirents.map((dirent: Dirent) => {
-        const res = join(dir, dirent.name);
-        if (dirent.isDirectory()) {
-          return findImageFiles(res);
-        }
-        if (imageExtensions.includes(extname(res).toLowerCase())) {
-          return res;
-        }
-        return [];
-      })
-    );
-    return Array.prototype.concat(...files);
+    for (const dirent of dirents) {
+      const res = join(dir, dirent.name);
+      if (dirent.isDirectory()) {
+        yield* findImageFiles(res);
+      } else if (imageExtensions.includes(extname(res).toLowerCase())) {
+        yield res;
+      }
+    }
   } catch (error) {
     console.error(`[ERROR] Error scanning directory '${dir}':`, error);
-    return []; // Return empty array on error to prevent crashing
   }
 }
