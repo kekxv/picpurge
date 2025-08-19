@@ -625,6 +625,7 @@
         } else if (type === 'unique') {
           renderUniqueImages(data.images); // 'images' for unique type
         }
+        window.lastFetchedImageData = data; // Store the fetched data for pagination
         updatePaginationControls(data.totalImages);
       } catch (error) {
         console.error('Error fetching image data:', error);
