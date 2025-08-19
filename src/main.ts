@@ -208,29 +208,66 @@ async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: num
 }
 
 
-async function findDuplicates() {
+// Helper function to move a file to the recycle directory
+async function moveFileToRecycle(filePath: string, recyclePath: string, db: any): Promise<boolean> {
+  try {
+    const fileName = basename(filePath);
+    const destPath = join(recyclePath, fileName);
+
+    await fs.mkdir(dirname(destPath), { recursive: true });
+
+    try {
+      await fs.rename(filePath, destPath);
+    } catch (renameErr) {
+      // If rename fails (e.g., cross-device link), copy and then delete original
+      await fs.copyFile(filePath, destPath);
+      await fs.unlink(filePath);
+    }
+
+    // Update database: mark as recycled
+    await db.run('UPDATE images SET is_recycled = TRUE WHERE file_path = ?', filePath);
+    return true;
+  } catch (error) {
+    console.error(chalk.red(`[ERROR] Failed to move ${filePath} to recycle bin: ${error instanceof Error ? error.message : String(error)}`));
+    return false;
+  }
+}
+
+async function findDuplicates(autoRecycleDuplicates: boolean, recyclePath: string) {
   const db = getDb();
   // Find all MD5 hashes that appear more than once
   const duplicateMd5s = await db.all('SELECT md5 FROM images GROUP BY md5 HAVING COUNT(*) > 1');
 
   let duplicatePairsCount = 0;
+  let recycledCount = 0;
 
   for (const { md5 } of duplicateMd5s) {
     // For each duplicate MD5, get all images with that MD5, ordered by ID
-    const imagesWithSameMd5 = await db.all('SELECT id FROM images WHERE md5 = ? ORDER BY id ASC', md5);
+    // We need file_path here for recycling
+    const imagesWithSameMd5 = await db.all('SELECT id, file_path FROM images WHERE md5 = ? ORDER BY id ASC', md5);
 
     if (imagesWithSameMd5.length > 1) {
       const masterImageId = imagesWithSameMd5[0].id;
       // Mark all subsequent images as duplicates of the first one
       for (let i = 1; i < imagesWithSameMd5.length; i++) {
-        const duplicateImageId = imagesWithSameMd5[i].id;
-        await db.run('UPDATE images SET is_duplicate = ?, duplicate_of = ? WHERE id = ?', true, masterImageId, duplicateImageId);
+        const duplicateImage = imagesWithSameMd5[i];
+        await db.run('UPDATE images SET is_duplicate = ?, duplicate_of = ? WHERE id = ?', true, masterImageId, duplicateImage.id);
         duplicatePairsCount++;
+
+        if (autoRecycleDuplicates) {
+          const moved = await moveFileToRecycle(duplicateImage.file_path, recyclePath, db);
+          if (moved) {
+            recycledCount++;
+          }
+        }
       }
     }
   }
 
   console.log(chalk.blue(`[INFO] Found ${chalk.bold(duplicatePairsCount.toString())} duplicate image pairs.`));
+  if (autoRecycleDuplicates) {
+    console.log(chalk.blue(`[INFO] Automatically recycled ${chalk.bold(recycledCount.toString())} duplicate images.`));
+  }
 }
 
 async function findSimilarImages() {
@@ -360,7 +397,8 @@ async function main() {
     .description('Image Organization Tool')
     .option('--sort [path]', 'Sort images into directories based on metadata. Optionally provide a destination path to copy sorted images instead of moving them.')
     .option('-p, --port <port>', 'Port to start the server on', '3000')
-    .option('--recycle-path <path>', 'Specify the path for the Recycle directory.') // New option
+    .option('--recycle-path <path>', 'Specify the path for the Recycle directory.')
+    .option('--auto-recycle-duplicates', 'Automatically move all but one duplicate image to the recycle directory.') // New option
     .argument('[paths...]', 'Path(s) to the directory or file(s) to scan for images.')
     .action(async (paths, options) => {
       // Check if paths are provided via arguments or --path option
@@ -455,7 +493,7 @@ async function main() {
         spinner: 'clock'
       }).start();
 
-      await findDuplicates();
+      await findDuplicates(options.autoRecycleDuplicates, recyclePath);
       duplicatesSpinner.succeed();
 
       const db = getDb();

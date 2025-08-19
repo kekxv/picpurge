@@ -30,6 +30,13 @@ export async function connectDb(): Promise<void> {
       is_recycled BOOLEAN DEFAULT FALSE
     )
   `);
+
+  // Add indexes for performance optimization
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_images_md5 ON images (md5)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_images_phash ON images (phash)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_images_is_duplicate ON images (is_duplicate)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_images_is_recycled ON images (is_recycled)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_images_file_path ON images (file_path)`);
 }
 
 export function getDb(): Database {
