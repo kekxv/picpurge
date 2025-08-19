@@ -150,6 +150,10 @@ async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: num
                 phash,
                 thumbnailPath,
               });
+              // Explicitly trigger flush if buffer is full
+              if (imageInsertBuffer.length >= BATCH_SIZE && !flushPromise) {
+                flushInsertBufferInternal();
+              }
             }
             processedCount++;
             progressBar.update(processedCount, { filename: basename(message.filePath) });
@@ -206,50 +210,68 @@ async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: num
 
 async function findDuplicates() {
   const db = getDb();
-  const duplicates = await db.all(
-    'SELECT a.id as id1, b.id as id2 FROM images a, images b WHERE a.md5 = b.md5 AND a.id < b.id'
-  );
+  // Find all MD5 hashes that appear more than once
+  const duplicateMd5s = await db.all('SELECT md5 FROM images GROUP BY md5 HAVING COUNT(*) > 1');
 
-  for (const row of duplicates) {
-    await db.run('UPDATE images SET is_duplicate = ?, duplicate_of = ? WHERE id = ?', true, row.id1, row.id2);
+  let duplicatePairsCount = 0;
+
+  for (const { md5 } of duplicateMd5s) {
+    // For each duplicate MD5, get all images with that MD5, ordered by ID
+    const imagesWithSameMd5 = await db.all('SELECT id FROM images WHERE md5 = ? ORDER BY id ASC', md5);
+
+    if (imagesWithSameMd5.length > 1) {
+      const masterImageId = imagesWithSameMd5[0].id;
+      // Mark all subsequent images as duplicates of the first one
+      for (let i = 1; i < imagesWithSameMd5.length; i++) {
+        const duplicateImageId = imagesWithSameMd5[i].id;
+        await db.run('UPDATE images SET is_duplicate = ?, duplicate_of = ? WHERE id = ?', true, masterImageId, duplicateImageId);
+        duplicatePairsCount++;
+      }
+    }
   }
 
-  console.log(chalk.blue(`[INFO] Found ${chalk.bold(duplicates.length.toString())} duplicate image pairs.`));
+  console.log(chalk.blue(`[INFO] Found ${chalk.bold(duplicatePairsCount.toString())} duplicate image pairs.`));
 }
 
 async function findSimilarImages() {
   const db = getDb();
-  // Get images with more metadata for better comparison
   const images: any[] = await db.all('SELECT id, phash, image_width, image_height FROM images');
-  // Use a stricter threshold to reduce false positives
-  const phashThreshold = 3; // Reduced from 5 to 3 for stricter matching
-
-  // For size comparison, we'll use a stricter threshold
-  const sizeThreshold = 0.5; // 50% difference in size allowed
+  const phashThreshold = 3;
+  const sizeThreshold = 0.2; // Stricter size difference: 20%
+  const aspectRatioTolerance = 0.1; // 10% tolerance for aspect ratio
 
   for (let i = 0; i < images.length; i++) {
     const image1 = images[i];
     if (!image1.phash || !image1.image_width || !image1.image_height) continue;
     const similar = [];
+    const aspectRatio1 = image1.image_width / image1.image_height;
+
     for (let j = i + 1; j < images.length; j++) {
       const image2 = images[j];
       if (!image2.phash || !image2.image_width || !image2.image_height) continue;
 
-      // Calculate phash distance
+      const aspectRatio2 = image2.image_width / image2.image_height;
+
+      // Pre-filter: Check aspect ratio similarity first
+      if (Math.abs(aspectRatio1 - aspectRatio2) / Math.max(aspectRatio1, aspectRatio2) > aspectRatioTolerance) {
+        continue; // Aspect ratios are too different, skip pHash comparison
+      }
+
+      // Pre-filter: Check size similarity (ratio of areas)
+      const area1 = image1.image_width * image1.image_height;
+      const area2 = image2.image_width * image2.image_height;
+      const sizeRatio = Math.min(area1, area2) / Math.max(area1, area2);
+      const sizeDifference = 1 - sizeRatio;
+
+      if (sizeDifference > sizeThreshold) {
+        continue; // Sizes are too different, skip pHash comparison
+      }
+
+      // Calculate phash distance only if pre-filters pass
       const phashDistance = hamming(hexToBinary(image1.phash), hexToBinary(image2.phash));
 
-      // Only consider size similarity if phash distance is already reasonably close
       if (phashDistance <= phashThreshold) {
-        // Calculate size similarity (ratio of areas)
-        const area1 = image1.image_width * image1.image_height;
-        const area2 = image2.image_width * image2.image_height;
-        const sizeRatio = Math.min(area1, area2) / Math.max(area1, area2);
-        const sizeDifference = 1 - sizeRatio;
-
-        // Add to similar list only if size difference is within threshold
-        if (sizeDifference <= sizeThreshold) {
-          similar.push(image2.id);
-        }
+        similar.push(image2.id);
       }
     }
     if (similar.length > 0) {

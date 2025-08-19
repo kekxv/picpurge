@@ -576,20 +576,22 @@
         const data = await response.json();
         if (data.success) {
           showToast('File recycled successfully!');
-          setTimeout(() => {
-            const card = buttonElement.closest('.border');
-            if (card) {
-              card.style.transition = 'opacity 0.3s ease';
-              card.style.opacity = '0';
-              setTimeout(() => {
-                card.remove();
-                // Re-fetch stats after recycling
-                fetchStats(); 
-                // Re-fetch image data for the current filter
-                fetchImageData(currentFilter);
-              }, 300);
-            }
-          }, 1000);
+          const card = buttonElement.closest('.border');
+          if (card) {
+            card.style.transition = 'opacity 0.3s ease';
+            card.style.opacity = '0';
+            card.addEventListener('transitionend', () => { // Wait for transition to end
+              card.remove();
+              // Re-fetch stats after recycling
+              fetchStats(); 
+              // Re-fetch image data for the current filter
+              fetchImageData(currentFilter);
+            }, { once: true }); // Ensure listener is removed after first execution
+          } else {
+            // If card not found, still re-fetch data
+            fetchStats(); 
+            fetchImageData(currentFilter);
+          }
         } else {
           throw new Error(data.error || 'Unknown error');
         }

@@ -15,6 +15,8 @@ const __dirname = dirname(__filename);
 const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+app.use(express.json()); // Add this line to parse JSON request bodies
+
 // Serve static files from src directory
 app.use(express.static(__dirname));
 
@@ -42,7 +44,7 @@ app.get('/', (req: Request, res: Response) => {
 
 app.get('/api/stats', async (req: Request, res: Response) => {
   const db = getDb();
-  const allImagesForStats: any[] = await db.all('SELECT * FROM images');
+  const allImagesForStats: any[] = await db.all('SELECT * FROM images WHERE is_recycled = FALSE');
   const totalAllImages = allImagesForStats.length;
 
   const duplicateGroupsAll: { [key: string]: any[] } = {};
@@ -164,7 +166,7 @@ app.get('/api/images', async (req: Request, res: Response) => {
 
   switch (type) {
     case 'duplicates':
-      const allImagesForDuplicates: any[] = await db.all('SELECT * FROM images');
+      const allImagesForDuplicates: any[] = await db.all('SELECT * FROM images WHERE is_recycled = FALSE');
       const duplicateGroups: { [key: string]: any[] } = {};
       allImagesForDuplicates.forEach(img => {
         if (img.is_duplicate && img.duplicate_of !== null && img.is_duplicate !== undefined) {
@@ -203,7 +205,7 @@ app.get('/api/images', async (req: Request, res: Response) => {
       return;
 
     case 'similar':
-      const allImagesForSimilar: any[] = await db.all('SELECT * FROM images');
+      const allImagesForSimilar: any[] = await db.all('SELECT * FROM images WHERE is_recycled = FALSE');
       const similarGroups: { [key: string]: any[] } = {};
       const similarRelationships: { [id: number]: number[] } = {};
       
@@ -279,15 +281,15 @@ app.get('/api/images', async (req: Request, res: Response) => {
       return;
 
     case 'unique':
-      query = 'SELECT * FROM images WHERE is_duplicate = FALSE AND (similar_images IS NULL OR similar_images = \'null\') ORDER BY create_date ASC LIMIT ? OFFSET ?';
-      countQuery = 'SELECT COUNT(*) as count FROM images WHERE is_duplicate = FALSE AND (similar_images IS NULL OR similar_images = \'null\')';
+      query = 'SELECT * FROM images WHERE is_duplicate = FALSE AND (similar_images IS NULL OR similar_images = \'null\') AND is_recycled = FALSE ORDER BY create_date ASC LIMIT ? OFFSET ?';
+      countQuery = 'SELECT COUNT(*) as count FROM images WHERE is_duplicate = FALSE AND (similar_images IS NULL OR similar_images = \'null\') AND is_recycled = FALSE';
       params = [limit, offset];
       break;
 
     case 'all':
     default:
-      query = 'SELECT * FROM images ORDER BY create_date ASC LIMIT ? OFFSET ?';
-      countQuery = 'SELECT COUNT(*) as count FROM images';
+      query = 'SELECT * FROM images WHERE is_recycled = FALSE ORDER BY create_date ASC LIMIT ? OFFSET ?';
+      countQuery = 'SELECT COUNT(*) as count FROM images WHERE is_recycled = FALSE';
       params = [limit, offset];
       break;
   }
@@ -314,6 +316,40 @@ export function addThumbnailToMemory(md5: string, buffer: Buffer) {
 export function removeThumbnailFromMemory(md5: string) {
   thumbnailMemoryStore.delete(md5);
 }
+
+app.post('/api/recycle', async (req: Request, res: Response) => {
+  const db = getDb();
+  const { filePath } = req.body;
+
+  if (!filePath) {
+    return res.status(400).json({ success: false, error: 'File path is required.' });
+  }
+
+  const RECYCLE_BIN_PATH = join(process.cwd(), 'Recycle'); // Default recycle path
+
+  try {
+    const fileName = basename(filePath);
+    const destPath = join(RECYCLE_BIN_PATH, fileName);
+
+    await fs.mkdir(dirname(destPath), { recursive: true });
+
+    try {
+      await fs.rename(filePath, destPath);
+    } catch (renameErr) {
+      // If rename fails (e.g., cross-device link), copy and then delete original
+      await fs.copyFile(filePath, destPath);
+      await fs.unlink(filePath);
+    }
+
+    // Update database: mark as recycled
+    await db.run('UPDATE images SET is_recycled = TRUE WHERE file_path = ?', filePath);
+
+    res.json({ success: true, message: 'File recycled successfully.' });
+  } catch (error) {
+    console.error('Error recycling file:', error);
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
 
 app.get('/api/image/:id', async (req: Request, res: Response) => {
   const imageId = req.params.id;

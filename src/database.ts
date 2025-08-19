@@ -26,7 +26,8 @@ export async function connectDb(): Promise<void> {
       is_duplicate BOOLEAN DEFAULT FALSE,
       duplicate_of INTEGER,
       similar_images TEXT,
-      thumbnail_path TEXT
+      thumbnail_path TEXT,
+      is_recycled BOOLEAN DEFAULT FALSE
     )
   `);
 }
