@@ -40,10 +40,98 @@ app.get('/', (req: Request, res: Response) => {
   res.sendFile(join(__dirname, 'index.html'));
 });
 
+app.get('/api/stats', async (req: Request, res: Response) => {
+  const db = getDb();
+  const allImagesForStats: any[] = await db.all('SELECT * FROM images');
+  const totalAllImages = allImagesForStats.length;
+
+  const duplicateGroupsAll: { [key: string]: any[] } = {};
+  allImagesForStats.forEach(img => {
+    if (img.is_duplicate && img.duplicate_of !== null && img.is_duplicate !== undefined) {
+      const masterImage = allImagesForStats.find(m => m.id === img.duplicate_of);
+      if (masterImage) {
+        const masterId = masterImage.id.toString();
+        if (!duplicateGroupsAll[masterId]) {
+          duplicateGroupsAll[masterId] = [masterImage];
+        }
+        duplicateGroupsAll[masterId].push(img);
+      }
+    }
+  });
+  const duplicateGroupCountAll = Object.keys(duplicateGroupsAll).length;
+
+  const similarGroupsAll: { [key: string]: any[] } = {};
+  const similarRelationshipsAll: { [id: number]: number[] } = {};
+  allImagesForStats.forEach(img => {
+    if (img.similar_images && img.similar_images !== 'null') {
+      const similarIds = JSON.parse(img.similar_images);
+      similarRelationshipsAll[img.id] = similarIds;
+      similarIds.forEach((similarId: number) => {
+        if (!similarRelationshipsAll[similarId]) {
+          similarRelationshipsAll[similarId] = [];
+        }
+        if (!similarRelationshipsAll[similarId].includes(img.id)) {
+          similarRelationshipsAll[similarId].push(img.id);
+        }
+      });
+    }
+  });
+  const visitedAll = new Set<number>();
+  Object.keys(similarRelationshipsAll).forEach(idStr => {
+    const id = parseInt(idStr);
+    if (visitedAll.has(id)) return;
+    const queue: number[] = [id];
+    const group: number[] = [];
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (visitedAll.has(currentId)) continue;
+      visitedAll.add(currentId);
+      group.push(currentId);
+      const neighbors = similarRelationshipsAll[currentId] || [];
+      neighbors.forEach(neighborId => {
+        if (!visitedAll.has(neighborId)) {
+          queue.push(neighborId);
+        }
+      });
+    }
+    if (group.length > 1) {
+      const groupKey = group.sort((a, b) => a - b).join('-');
+      similarGroupsAll[groupKey] = group.map(groupId => 
+        allImagesForStats.find(img => img.id === groupId)
+      ).filter(img => img !== undefined) as any[];
+    }
+  });
+  const similarGroupCountAll = Object.keys(similarGroupsAll).length;
+
+  const uniqueImagesAll = allImagesForStats.filter(img => {
+    const isNotDuplicate = !img.is_duplicate;
+    const isNotInAnySimilarGroup = !Object.values(similarGroupsAll).flat().some(s => s.id === img.id);
+    return isNotDuplicate && isNotInAnySimilarGroup;
+  });
+  const uniqueImageCountAll = uniqueImagesAll.length;
+
+  res.json({
+    totalImages: totalAllImages,
+    duplicateGroupCount: duplicateGroupCountAll,
+    similarGroupCount: similarGroupCountAll,
+    uniqueImageCount: uniqueImageCountAll,
+  });
+});
+
 app.get('/api/images', async (req: Request, res: Response) => {
   const db = getDb();
-  const allImages: any[] = await db.all('SELECT * FROM images');
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 50;
+  const offset = (page - 1) * limit;
+  const type = req.query.type as string || 'all'; // 'all', 'duplicates', 'similar', 'unique'
 
+  let query = '';
+  let countQuery = '';
+  let params: any[] = [];
+  let totalCount = 0;
+  let images: any[] = [];
+
+  // Helper functions (already present in the file, but I'll include them for context)
   function parseCreateDate(create_date: any): Date | null {
     if (!create_date) {
         return null;
@@ -74,183 +162,155 @@ app.get('/api/images', async (req: Request, res: Response) => {
     return (image.width || 0) * (image.height || 0);
   }
 
-  const duplicateGroups: { [key: string]: any[] } = {};
-  allImages.forEach(img => {
-    if (img.is_duplicate && img.duplicate_of !== null && img.duplicate_of !== undefined) {
-      const masterImage = allImages.find(m => m.id === img.duplicate_of);
-      if (masterImage) {
-        const masterId = masterImage.id.toString();
-        if (!duplicateGroups[masterId]) {
-          duplicateGroups[masterId] = [masterImage];
-        }
-        duplicateGroups[masterId].push(img);
-      }
-    }
-  });
-
-  const similarGroups: { [key: string]: any[] } = {};
-  const similarRelationships: { [id: number]: number[] } = {};
-  
-  allImages.forEach(img => {
-    if (img.similar_images && img.similar_images !== 'null') {
-      const similarIds = JSON.parse(img.similar_images);
-      similarRelationships[img.id] = similarIds;
-      
-      similarIds.forEach((similarId: number) => {
-        if (!similarRelationships[similarId]) {
-          similarRelationships[similarId] = [];
-        }
-        if (!similarRelationships[similarId].includes(img.id)) {
-          similarRelationships[similarId].push(img.id);
+  switch (type) {
+    case 'duplicates':
+      const allImagesForDuplicates: any[] = await db.all('SELECT * FROM images');
+      const duplicateGroups: { [key: string]: any[] } = {};
+      allImagesForDuplicates.forEach(img => {
+        if (img.is_duplicate && img.duplicate_of !== null && img.is_duplicate !== undefined) {
+          const masterImage = allImagesForDuplicates.find(m => m.id === img.duplicate_of);
+          if (masterImage) {
+            const masterId = masterImage.id.toString();
+            if (!duplicateGroups[masterId]) {
+              duplicateGroups[masterId] = [masterImage];
+            }
+            duplicateGroups[masterId].push(img);
+          }
         }
       });
-    }
-  });
-  
-  const visited = new Set<number>();
-  Object.keys(similarRelationships).forEach(idStr => {
-    const id = parseInt(idStr);
-    if (visited.has(id)) return;
-    
-    const queue: number[] = [id];
-    const group: number[] = [];
-    
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      if (visited.has(currentId)) continue;
+      const sortedDuplicateGroupKeys = Object.keys(duplicateGroups).sort((a, b) => {
+        const groupA = duplicateGroups[a];
+        const groupB = duplicateGroups[b];
+        if (!groupA || !groupB || groupA.length === 0 || groupB.length === 0) {
+            return 0;
+        }
+        const masterA = groupA[0];
+        const masterB = groupB[0];
+        const keyA = getSortKey(masterA);
+        const keyB = getSortKey(masterB);
+        if (keyA > keyB) return -1;
+        if (keyA < keyB) return 1;
+        return 0;
+      });
+      const paginatedDuplicateGroups = sortedDuplicateGroupKeys.slice(offset, offset + limit).map(key => duplicateGroups[key]);
+      totalCount = sortedDuplicateGroupKeys.length;
+      res.json({
+        totalImages: totalCount,
+        currentPage: page,
+        limit: limit,
+        duplicateGroups: paginatedDuplicateGroups,
+      });
+      return;
+
+    case 'similar':
+      const allImagesForSimilar: any[] = await db.all('SELECT * FROM images');
+      const similarGroups: { [key: string]: any[] } = {};
+      const similarRelationships: { [id: number]: number[] } = {};
       
-      visited.add(currentId);
-      group.push(currentId);
-      
-      const neighbors = similarRelationships[currentId] || [];
-      neighbors.forEach(neighborId => {
-        if (!visited.has(neighborId)) {
-          queue.push(neighborId);
+      allImagesForSimilar.forEach(img => {
+        if (img.similar_images && img.similar_images !== 'null') {
+          const similarIds = JSON.parse(img.similar_images);
+          similarRelationships[img.id] = similarIds;
+          
+          similarIds.forEach((similarId: number) => {
+            if (!similarRelationships[similarId]) {
+              similarRelationships[similarId] = [];
+            }
+            if (!similarRelationships[similarId].includes(img.id)) {
+              similarRelationships[similarId].push(img.id);
+            }
+          });
         }
       });
-    }
-    
-    if (group.length > 1) {
-      const groupKey = group.sort((a, b) => a - b).join('-');
-      similarGroups[groupKey] = group.map(groupId => 
-        allImages.find(img => img.id === groupId)
-      ).filter(img => img !== undefined) as any[];
-    }
-  });
+      
+      const visited = new Set<number>();
+      Object.keys(similarRelationships).forEach(idStr => {
+        const id = parseInt(idStr);
+        if (visited.has(id)) return;
+        
+        const queue: number[] = [id];
+        const group: number[] = [];
+        
+        while (queue.length > 0) {
+          const currentId = queue.shift()!;
+          if (visited.has(currentId)) continue;
+          
+          visited.add(currentId);
+          group.push(currentId);
+          
+          const neighbors = similarRelationships[currentId] || [];
+          neighbors.forEach(neighborId => {
+            if (!visited.has(neighborId)) {
+              queue.push(neighborId);
+            }
+          });
+        }
+        
+        if (group.length > 1) {
+          const groupKey = group.sort((a, b) => a - b).join('-');
+          similarGroups[groupKey] = group.map(groupId => 
+            allImagesForSimilar.find(img => img.id === groupId)
+          ).filter(img => img !== undefined) as any[];
+        }
+      });
 
-  const uniqueImages = allImages.filter(img => {
-    const isNotDuplicate = !img.is_duplicate;
-    const isNotInAnySimilarGroup = !Object.values(similarGroups).flat().some(s => s.id === img.id);
-    return isNotDuplicate && isNotInAnySimilarGroup;
-  });
-
-  uniqueImages.sort((a, b) => {
-    const dateA = parseCreateDate(a.create_date);
-    const dateB = parseCreateDate(b.create_date);
-
-    if (dateA && dateB) {
-      if (dateA.getTime() < dateB.getTime()) return -1; // Sort by create_date in ascending order
-      if (dateA.getTime() > dateB.getTime()) return 1;
-    }
-    // Handle cases where create_date might be null or invalid, keep original order
-    return 0;
-  });
-
-  const sortedDuplicateGroupKeys = Object.keys(duplicateGroups).sort((a, b) => {
-    const groupA = duplicateGroups[a];
-    const groupB = duplicateGroups[b];
-    if (!groupA || !groupB || groupA.length === 0 || groupB.length === 0) {
+      const sortedSimilarGroupKeys = Object.keys(similarGroups).sort((a, b) => {
+        const groupA = similarGroups[a];
+        const groupB = similarGroups[b];
+        if (!groupA || !groupB || groupA.length === 0 || groupB.length === 0) {
+            return 0;
+        }
+        const firstImageA = groupA[0];
+        const firstImageB = groupB[0];
+        const keyA = getSortKey(firstImageA);
+        const keyB = getSortKey(firstImageB);
+        if (keyA > keyB) return -1;
+        if (keyA < keyB) return 1;
         return 0;
-    }
-    const masterA = groupA[0];
-    const masterB = groupB[0];
-    const keyA = getSortKey(masterA);
-    const keyB = getSortKey(masterB);
-    if (keyA > keyB) return -1; // Sort in descending order
-    if (keyA < keyB) return 1;
-    return 0;
-  });
+      });
+      const paginatedSimilarGroups = sortedSimilarGroupKeys.slice(offset, offset + limit).map(key => similarGroups[key]);
+      totalCount = sortedSimilarGroupKeys.length;
+      res.json({
+        totalImages: totalCount,
+        currentPage: page,
+        limit: limit,
+        similarGroups: paginatedSimilarGroups,
+      });
+      return;
 
-  const sortedSimilarGroupKeys = Object.keys(similarGroups).sort((a, b) => {
-    const groupA = similarGroups[a];
-    const groupB = similarGroups[b];
-    if (!groupA || !groupB || groupA.length === 0 || groupB.length === 0) {
-        return 0;
-    }
-    const firstImageA = groupA[0];
-    const firstImageB = groupB[0];
-    const keyA = getSortKey(firstImageA);
-    const keyB = getSortKey(firstImageB);
-    if (keyA > keyB) return -1; // Sort in descending order
-    if (keyA < keyB) return 1;
-    return 0;
-  });
+    case 'unique':
+      query = 'SELECT * FROM images WHERE is_duplicate = FALSE AND (similar_images IS NULL OR similar_images = \'null\') ORDER BY create_date ASC LIMIT ? OFFSET ?';
+      countQuery = 'SELECT COUNT(*) as count FROM images WHERE is_duplicate = FALSE AND (similar_images IS NULL OR similar_images = \'null\')';
+      params = [limit, offset];
+      break;
 
-  const sortedDuplicateGroups = sortedDuplicateGroupKeys.map(key => duplicateGroups[key]);
-  const sortedSimilarGroups = sortedSimilarGroupKeys.map(key => similarGroups[key]);
+    case 'all':
+    default:
+      query = 'SELECT * FROM images ORDER BY create_date ASC LIMIT ? OFFSET ?';
+      countQuery = 'SELECT COUNT(*) as count FROM images';
+      params = [limit, offset];
+      break;
+  }
+
+  const totalImagesResult = await db.get(countQuery);
+  totalCount = totalImagesResult ? totalImagesResult.count : 0;
+  images = await db.all(query, ...params);
 
   res.json({
-    totalImages: allImages.length,
-    duplicateGroupCount: sortedDuplicateGroups.length,
-    similarGroupCount: sortedSimilarGroups.length,
-    uniqueImageCount: uniqueImages.length,
-    duplicateGroups: sortedDuplicateGroups,
-    similarGroups: sortedSimilarGroups,
-    uniqueImages: uniqueImages,
+    totalImages: totalCount,
+    currentPage: page,
+    limit: limit,
+    images: images, // Renamed from uniqueImages for 'all' and 'unique'
   });
 });
 
-app.use(express.json());
 
-app.post('/api/recycle', async (req: Request, res: Response) => {
-  const { filePath } = req.body;
-  if (!filePath) {
-    return res.status(400).send({ error: 'filePath is required' });
-  }
+import http from 'http'; // Import http module
 
-  try {
-    const recycleDir = join(process.cwd(), 'Recycle');
-    await fs.mkdir(recycleDir, { recursive: true });
-    
-    let destinationPath = join(recycleDir, basename(filePath));
-    
-    try {
-      await fs.access(destinationPath);
-      const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-      const name = basename(filePath, extname(filePath));
-      const ext = extname(filePath);
-      destinationPath = join(recycleDir, `${name}_${randomSuffix}${ext}`);
-    } catch (accessError) {
-    }
-    
-    const readStream = createReadStream(filePath);
-    const writeStream = createWriteStream(destinationPath);
-    
-    await new Promise<void>((resolve, reject) => {
-        readStream.pipe(writeStream);
-        readStream.on('error', reject);
-        writeStream.on('error', reject);
-        writeStream.on('finish', () => resolve());
-    });
-    
-    await fs.unlink(filePath);
-    
-    const db = getDb();
-    await db.run('DELETE FROM images WHERE file_path = ?', filePath);
-    
-    res.send({ success: true });
-  } catch (error) {
-    console.error('Error recycling file:', error);
-    res.status(500).send({ error: (error as Error).message });
-  }
-});
-
-// Add thumbnail to memory store
 export function addThumbnailToMemory(md5: string, buffer: Buffer) {
   thumbnailMemoryStore.set(md5, buffer);
 }
 
-// Remove thumbnail from memory store
 export function removeThumbnailFromMemory(md5: string) {
   thumbnailMemoryStore.delete(md5);
 }
@@ -277,8 +337,9 @@ app.get('/api/image/:id', async (req: Request, res: Response) => {
   }
 });
 
-export function startServer() {
-  app.listen(port, () => {
+export function startServer(): http.Server { // Change return type to http.Server
+  const server = app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
   });
+  return server; // Return the server instance
 }

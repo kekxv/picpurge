@@ -10,6 +10,7 @@ import os from 'os';
 import readline from 'readline';
 import { Worker } from 'worker_threads';
 import { fileURLToPath } from 'url';
+import http from 'http'; // Import http module
 
 // Import chalk for colorful output
 import chalk from 'chalk';
@@ -33,6 +34,11 @@ function hexToBinary(hex: string): string {
   return hex.split('').map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('');
 }
 
+const BATCH_SIZE = 500;
+const imageInsertBuffer: any[] = [];
+let flushPromise: Promise<void> | null = null;
+let flushIntervalId: NodeJS.Timeout | null = null;
+
 async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: number, multibar: cliProgress.MultiBar, recyclePath: string) {
   const numWorkers = os.cpus().length > 1 ? os.cpus().length - 1 : 1;
   console.log(chalk.blue(`[INFO] Using ${numWorkers} worker threads.`));
@@ -41,10 +47,62 @@ async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: num
   const progressBar = multibar.create(totalFiles, 0, { filename: "N/A" });
   let processedCount = 0;
 
+  // Function to flush the buffer
+  async function flushInsertBufferInternal() {
+    if (imageInsertBuffer.length === 0) return;
+    if (flushPromise) { // If a flush is already in progress, wait for it
+      await flushPromise;
+      if (imageInsertBuffer.length === 0) return; // Check again after waiting
+    }
+
+    const currentBatch = imageInsertBuffer.splice(0); // Take all current items
+    if (currentBatch.length === 0) return;
+
+    const currentFlushPromise = (async () => {
+      await db.run('BEGIN TRANSACTION');
+      try {
+        for (const imageData of currentBatch) {
+          await db.run(
+            'INSERT OR IGNORE INTO images (file_path, file_name, file_size, md5, image_width, image_height, device_make, device_model, lens_model, create_date, phash, thumbnail_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            imageData.filePath,
+            imageData.fileName,
+            imageData.size,
+            imageData.md5,
+            imageData.width,
+            imageData.height,
+            imageData.deviceMake,
+            imageData.deviceModel,
+            imageData.lensModel,
+            imageData.createDate,
+            imageData.phash,
+            imageData.thumbnailPath
+          );
+        }
+        await db.run('COMMIT');
+      } catch (err) {
+        console.error(chalk.red(`[ERROR] Error during batch insert: ${err}`));
+        await db.run('ROLLBACK');
+      } finally {
+        flushPromise = null; // Reset promise
+      }
+    })();
+    flushPromise = currentFlushPromise;
+    await currentFlushPromise;
+  }
+
+  // Start periodic flushing
+  flushIntervalId = setInterval(() => {
+    if (imageInsertBuffer.length > 0 && !flushPromise) {
+      flushInsertBufferInternal();
+    }
+  }, 100); // Flush every 100ms if there's data
+
   return new Promise<void>((resolve, reject) => {
     const workers = new Set<Worker>();
+    let activeWorkerCount = 0; // Track active workers
 
     const processFile = async (filePath: string) => {
+      activeWorkerCount++;
       const worker = new Worker(join(__dirname, 'worker.js'));
       workers.add(worker);
 
@@ -78,23 +136,39 @@ async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: num
               // thumbnailPath remains null
             }
 
-              await db.run(
-                'INSERT OR IGNORE INTO images (file_path, file_name, file_size, md5, image_width, image_height, device_make, device_model, lens_model, create_date, phash, thumbnail_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                filePath, basename(filePath), size, md5, width, height, deviceMake, deviceModel, lensModel, create_date, phash, thumbnailPath
-              );
+              imageInsertBuffer.push({
+                filePath,
+                fileName: basename(filePath),
+                size,
+                md5,
+                width,
+                height,
+                deviceMake,
+                deviceModel,
+                lensModel,
+                createDate: create_date,
+                phash,
+                thumbnailPath,
+              });
             }
             processedCount++;
             progressBar.update(processedCount, { filename: basename(message.filePath) });
-            
-            worker.terminate();
-            workers.delete(worker);
+        }
+        
+        worker.terminate();
+        workers.delete(worker);
+        activeWorkerCount--;
 
-            const next = await imageFiles.next();
-            if (!next.done) {
-              processFile(next.value);
-            } else if (workers.size === 0) {
-              resolve();
-            }
+        // Introduce a small delay to reduce CPU usage
+        await new Promise(resolve => setTimeout(resolve, 1));
+
+        const next = await imageFiles.next();
+        if (!next.done) {
+          processFile(next.value);
+        } else if (activeWorkerCount === 0) { // All workers finished
+          clearInterval(flushIntervalId!); // Stop periodic flushing
+          await flushInsertBufferInternal(); // Final flush
+          resolve();
         }
       });
 
@@ -104,11 +178,14 @@ async function runProcessing(imageFiles: AsyncGenerator<string>, totalFiles: num
         multibar.remove(messageBar);
         worker.terminate();
         workers.delete(worker);
+        activeWorkerCount--;
 
         const next = await imageFiles.next();
         if (!next.done) {
           processFile(next.value);
-        } else if (workers.size === 0) {
+        } else if (activeWorkerCount === 0) { // All workers finished
+          clearInterval(flushIntervalId!); // Stop periodic flushing
+          await flushInsertBufferInternal(); // Final flush
           resolve();
         }
       });

@@ -70,8 +70,8 @@
     </div>
 
     <div class="flex space-x-4 mb-8">
-      <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn active bg-warning text-white" data-filter="all">All Images</button>
-      <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn bg-white text-gray-700 hover:bg-pink-100 hover:text-warning" data-filter="duplicates">Duplicates</button>
+      <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn active bg-warning text-white" data-filter="duplicates">Duplicates</button>
+      
       <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn bg-white text-gray-700 hover:bg-pink-100 hover:text-warning" data-filter="similar">Similar</button>
       <button class="px-6 py-2 rounded-full text-sm font-semibold transition-colors duration-300 filter-btn bg-white text-gray-700 hover:bg-pink-100 hover:text-warning" data-filter="unique">Unique</button>
     </div>
@@ -128,6 +128,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Pagination Controls -->
+    <div class="flex justify-center items-center space-x-4 mt-8" id="pagination-controls">
+      <button id="prevPage" class="px-4 py-2 rounded-full bg-primary text-white text-sm font-semibold disabled:opacity-50" disabled>Previous</button>
+      <span id="pageInfo" class="text-gray-700 text-sm">Page 1 of 1</span>
+      <button id="nextPage" class="px-4 py-2 rounded-full bg-primary text-white text-sm font-semibold disabled:opacity-50" disabled>Next</button>
+    </div>
+
   </div>
   
   <div id="imagePreviewModal" class="modal hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -149,9 +157,14 @@
   
   <script>
     // Global variables to store data
-    let imageData = null;
-    let currentFilter = 'all';
+    // DOM elements for sections
+    const duplicateSection = document.getElementById('duplicates-section');
+    const similarSection = document.getElementById('similar-section');
+    const uniqueSection = document.getElementById('unique-section');
+    let currentFilter = 'duplicates';
     let currentSearch = '';
+    let currentPage = 1;
+    const imagesPerPage = 50; // Matches server-side limit
 
     function parseCreateDate(create_date) {
       if (!create_date) {
@@ -198,7 +211,7 @@
       const toastMessage = document.getElementById('toastMessage');
       
       toastMessage.textContent = message;
-      toast.className = `fixed top-5 right-5 p-4 rounded-lg text-white z-[100] ${
+      toast.className = `fixed top-5 right-5 p-4 rounded-lg text-white z-[100] ${ 
         isSuccess ? 'bg-green-500' : 'bg-red-500'
       }`;
       
@@ -223,29 +236,57 @@
       });
     }
 
+    function showSection(sectionType) {
+      duplicateSection.classList.add('hidden');
+      similarSection.classList.add('hidden');
+      uniqueSection.classList.add('hidden');
+
+      switch (sectionType) {
+        case 'duplicates':
+          duplicateSection.classList.remove('hidden');
+          break;
+        case 'similar':
+          similarSection.classList.remove('hidden');
+          break;
+        case 'unique':
+          uniqueSection.classList.remove('hidden');
+          break;
+        default: // This will now be the default case if no specific filter matches
+          // For 'all', show all sections that have content
+          // This will be handled by the render functions
+          duplicateSection.classList.remove('hidden');
+          similarSection.classList.remove('hidden');
+          uniqueSection.classList.remove('hidden');
+          break;
+      }
+    }
+
     function initFilters() {
       const filterButtons = document.querySelectorAll('.filter-btn');
       filterButtons.forEach(button => {
         button.addEventListener('click', function() {
           // Reset all buttons to inactive state
           filterButtons.forEach(btn => {
-            btn.classList.remove('active', 'bg-primary', 'text-white');
-            btn.classList.add('bg-white', 'text-gray-700', 'hover:bg-teal-100');
+            btn.classList.remove('active', 'bg-warning', 'text-white');
+            btn.classList.add('bg-white', 'text-gray-700', 'hover:bg-pink-100', 'hover:text-warning');
           });
           
           // Set clicked button to active state
-          this.classList.add('active', 'bg-primary', 'text-white');
-          this.classList.remove('bg-white', 'text-gray-700', 'hover:bg-teal-100');
+          this.classList.add('active', 'bg-warning', 'text-white');
+          this.classList.remove('bg-white', 'text-gray-700', 'hover:bg-pink-100', 'hover:text-warning');
           
           currentFilter = this.getAttribute('data-filter');
-          applyFilters();
+          currentPage = 1; // Reset to first page on filter change
+          showSection(currentFilter); // Show/hide sections based on filter
+          fetchImageData(currentFilter);
         });
       });
       
       const searchInput = document.getElementById('searchInput');
       searchInput.addEventListener('input', function() {
         currentSearch = this.value.toLowerCase();
-        applyFilters();
+        currentPage = 1; // Reset to first page on search change
+        fetchImageData(currentFilter); // Fetch data for current filter with new search
       });
     }
 
@@ -296,7 +337,7 @@
                       <div class="font-semibold truncate" title="${d.file_name}">${d.file_name}</div>
                       <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
                       <div class="text-sm text-gray-500">${d.image_width}x${d.image_height}</div>
-                      <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${d.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                      <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${d.file_path.replace(/\'/g, "'" )}', this)">Recycle</button>
                     </div>
                   </div>
                 `;
@@ -330,7 +371,7 @@
                         <div class="font-semibold truncate" title="${s.file_name}">${s.file_name}</div>
                         <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
                         <div class="text-sm text-gray-500">${s.image_width}x${s.image_height}</div>
-                        <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${s.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                        <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${s.file_path.replace(/\'/g, "'" )}', this)">Recycle</button>
                       </div>
                     </div>
                   `;
@@ -353,7 +394,7 @@
                         <div class="font-semibold truncate" title="${s.file_name}">${s.file_name}</div>
                         <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
                         <div class="text-sm text-gray-500">${s.image_width}x${s.image_height}</div>
-                        <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${s.file_path.replace(/'/g, "'")}', this)">Recycle</button>
+                        <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${s.file_path.replace(/\'/g, "'" )}', this)">Recycle</button>
                       </div>
                     </div>
                   `;
@@ -364,183 +405,6 @@
         }
       }).join('');
       container.innerHTML = `<div class="-mx-2">${content}</div>`;
-    }
-
-    function renderUniqueImages(images) {
-      const container = document.getElementById('unique-images-grid');
-      if (images.length === 0) {
-        container.innerHTML = '<div class="text-gray-500">No unique images found.</div>';
-        return;
-      }
-      container.innerHTML = `
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          ${images.map(u => {
-            const thumbnailSrc = u.thumbnail_path ? 
-              (u.thumbnail_path.startsWith('memory://') ? 
-                `/thumbnails/${u.md5}` : 
-                `/thumbnails/${u.thumbnail_path.split('/').pop()}`) : '';
-            const newName = generateNewName(u);
-            return `
-              <div class="bg-white rounded-xl overflow-hidden shadow-lg transform hover:-translate-y-1 transition-transform duration-300">
-                ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${u.file_name}" class="w-full h-40 object-cover cursor-pointer" data-image-id="${u.id}" data-group-type="unique">` : '<div class="w-full h-40 bg-gray-100 flex items-center justify-center"><svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1.586-1.586a2 2 0 00-2.828 0L6 14m6-6l.01.01"></path></svg></div>'}
-                <div class="p-4">
-                  <div class="font-semibold truncate" title="${u.file_name}">${u.file_name}</div>
-                  <div class="text-sm text-gray-500 truncate" title="${newName}">${newName}</div>
-                  <div class="text-sm text-gray-500">${u.image_width}x${u.image_height}</div>
-                  <button class="mt-4 w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full text-sm font-semibold" onclick="recycle('${u.file_path.replace(/'/g, "'")}', this)">Recycle</button>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      `;
-    }
-
-    function applyFilters() {
-      if (!imageData) return;
-
-      const duplicatesSection = document.getElementById('duplicates-section').parentElement;
-      const similarSection = document.getElementById('similar-section').parentElement;
-      const uniqueSection = document.getElementById('unique-section').parentElement;
-
-      // Hide all sections initially
-      duplicatesSection.classList.add('hidden');
-      similarSection.classList.add('hidden');
-      uniqueSection.classList.add('hidden');
-
-      // Filter and render based on current filter and search
-      switch(currentFilter) {
-        case 'all':
-          duplicatesSection.classList.remove('hidden');
-          similarSection.classList.remove('hidden');
-          uniqueSection.classList.remove('hidden');
-          renderDuplicateGroups(imageData.duplicateGroups);
-          renderSimilarGroups(imageData.similarGroups);
-          renderUniqueImages(imageData.uniqueImages);
-          break;
-        case 'duplicates':
-          duplicatesSection.classList.remove('hidden');
-          renderDuplicateGroups(imageData.duplicateGroups);
-          break;
-        case 'similar':
-          similarSection.classList.remove('hidden');
-          renderSimilarGroups(imageData.similarGroups);
-          break;
-        case 'unique':
-          uniqueSection.classList.remove('hidden');
-          renderUniqueImages(imageData.uniqueImages);
-          break;
-      }
-    }
-
-    window.onload = async () => {
-      try {
-        const response = await fetch('/api/images');
-        imageData = await response.json();
-
-        renderStats(imageData);
-        renderDuplicateGroups(imageData.duplicateGroups);
-        renderSimilarGroups(imageData.similarGroups);
-        renderUniqueImages(imageData.uniqueImages);
-
-        setupImagePreview();
-        initCollapsible();
-        initFilters();
-      } catch (error) {
-        console.error('Error loading data:', error);
-        showToast('Error loading data. Please refresh the page.', false);
-      }
-    };
-
-    function renderStats(data) {
-      const statsGrid = document.getElementById('stats-grid');
-      statsGrid.innerHTML = `
-        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
-          <span class="text-5xl font-bold font-serif text-dark">${data.totalImages}</span>
-          <span class="text-sm text-gray-600 mt-2 block">Total Images</span>
-        </div>
-        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
-          <span class="text-5xl font-bold font-serif text-dark">${data.duplicateGroupCount}</span>
-          <span class="text-sm text-gray-600 mt-2 block">Duplicate Groups</span>
-        </div>
-        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
-          <span class="text-5xl font-bold font-serif text-dark">${data.similarGroupCount}</span>
-          <span class="text-sm text-gray-600 mt-2 block">Similar Groups</span>
-        </div>
-        <div class="bg-teal-100 p-6 rounded-xl text-center shadow-inner">
-          <span class="text-5xl font-bold font-serif text-dark">${data.uniqueImageCount}</span>
-          <span class="text-sm text-gray-600 mt-2 block">Unique Images</span>
-        </div>
-      `;
-    }
-
-    function renderDuplicateGroups(groups) {
-      const container = document.getElementById('duplicate-groups');
-      if (groups.length === 0) {
-        container.innerHTML = '<div class="text-gray-500">No duplicate image groups found.</div>';
-        return;
-      }
-      container.innerHTML = groups.map(groupImages => {
-        const groupKey = groupImages[0].id;
-        return `
-          <div class="mb-8">
-            <h3 class="text-lg font-semibold mb-2">Group: ${groupKey} (${groupImages.length} images)</h3>
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              ${groupImages.map(d => {
-                const thumbnailSrc = d.thumbnail_path ? `/thumbnails/${d.thumbnail_path.split('/').pop()}` : '';
-                const newName = generateNewName(d);
-                return `
-                  <div class="border rounded-lg overflow-hidden shadow-md">
-                    ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${d.file_name}" class="w-full h-32 object-cover cursor-pointer" data-image-id="${d.id}" data-group-ids="${groupKey}" data-group-type="duplicate">` : '<div class="w-full h-32 bg-gray-200 flex items-center justify-center"><svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1.586-1.586a2 2 0 00-2.828 0L6 14m6-6l.01.01"></path></svg></div>'}
-                    <div class="p-2">
-                      <div class="text-sm font-semibold truncate" title="${d.file_name}">${d.file_name}</div>
-                      <div class="text-xs text-gray-500 truncate" title="${newName}">${newName}</div>
-                      <div class="text-xs text-gray-500">${d.image_width}x${d.image_height}</div>
-                      <button class="mt-2 w-full bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-xs" onclick="recycle('${d.file_path.replace(/'/g, "\'")}', this)">Recycle</button>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function renderSimilarGroups(groups) {
-      const container = document.getElementById('similar-groups');
-      if (groups.length === 0) {
-        container.innerHTML = '<div class="text-gray-500">No similar image groups found.</div>';
-        return;
-      }
-      container.innerHTML = groups.map(groupImages => {
-        const groupKey = groupImages.map(i => i.id).sort().join('-');
-        return `
-          <div class="mb-8">
-            <h3 class="text-lg font-semibold mb-2">Group: ${groupKey} (${groupImages.length} images)</h3>
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              ${groupImages.map(s => {
-                const thumbnailSrc = s.thumbnail_path ? 
-                  (s.thumbnail_path.startsWith('memory://') ? 
-                    `/thumbnails/${s.md5}` : 
-                    `/thumbnails/${s.thumbnail_path.split('/').pop()}`) : '';
-                const newName = generateNewName(s);
-                return `
-                  <div class="border rounded-lg overflow-hidden shadow-md">
-                    ${thumbnailSrc ? `<img src="${thumbnailSrc}" alt="${s.file_name}" class="w-full h-32 object-cover cursor-pointer" data-image-id="${s.id}" data-group-ids="${groupKey}" data-group-type="similar">` : '<div class="w-full h-32 bg-gray-200 flex items-center justify-center"><svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l-1.586-1.586a2 2 0 00-2.828 0L6 14m6-6l.01.01"></path></svg></div>'}
-                    <div class="p-2">
-                      <div class="text-sm font-semibold truncate" title="${s.file_name}">${s.file_name}</div>
-                      <div class="text-xs text-gray-500 truncate" title="${newName}">${newName}</div>
-                      <div class="text-xs text-gray-500">${s.image_width}x${s.image_height}</div>
-                      <button class="mt-2 w-full bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-xs" onclick="recycle('${s.file_path.replace(/'/g, "\'")}', this)">Recycle</button>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        `;
-      }).join('');
     }
 
     function renderUniqueImages(images) {
@@ -564,7 +428,7 @@
                   <div class="text-sm font-semibold truncate" title="${u.file_name}">${u.file_name}</div>
                   <div class="text-xs text-gray-500 truncate" title="${newName}">${newName}</div>
                   <div class="text-xs text-gray-500">${u.image_width}x${u.image_height}</div>
-                  <button class="mt-2 w-full bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-xs" onclick="recycle('${u.file_path.replace(/'/g, "\'")}', this)">Recycle</button>
+                  <button class="mt-2 w-full bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-xs" onclick="recycle('${u.file_path.replace(/\'/g, "'" )}', this)">Recycle</button>
                 </div>
               </div>
             `;
@@ -572,7 +436,6 @@
         </div>
       `;
     }
-
     function setupImagePreview() {
       const modal = document.getElementById("imagePreviewModal");
       const modalImg = document.getElementById("previewImage");
@@ -720,10 +583,10 @@
               card.style.opacity = '0';
               setTimeout(() => {
                 card.remove();
-                if (imageData) {
-                  imageData.totalImages--;
-                  renderStats(imageData);
-                }
+                // Re-fetch stats after recycling
+                fetchStats(); 
+                // Re-fetch image data for the current filter
+                fetchImageData(currentFilter);
               }, 300);
             }
           }, 1000);
@@ -737,6 +600,97 @@
         buttonElement.innerHTML = originalText;
       }
     }
+
+    // Function to fetch image data from the API
+    async function fetchImageData(type) {
+      try {
+        const response = await fetch(`/api/images?page=${currentPage}&limit=${imagesPerPage}&type=${type}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        // Clear previous content
+        document.getElementById('duplicate-groups').innerHTML = '';
+        document.getElementById('similar-groups').innerHTML = '';
+        document.getElementById('unique-images-grid').innerHTML = '';
+
+        // Render based on type
+        if (type === 'duplicates') {
+          renderDuplicateGroups(data.duplicateGroups);
+        } else if (type === 'similar') {
+          renderSimilarGroups(data.similarGroups);
+        } else if (type === 'unique') {
+          renderUniqueImages(data.images); // 'images' for unique type
+        }
+        updatePaginationControls(data.totalImages);
+      } catch (error) {
+        console.error('Error fetching image data:', error);
+        showToast(`Error fetching data: ${error.message}`, false);
+      }
+    }
+
+    // Function to fetch statistics from the API
+    async function fetchStats() {
+      try {
+        const response = await fetch('/api/stats');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const statsData = await response.json();
+        renderStats(statsData);
+      } catch (error) {
+        console.error('Error fetching statistics:', error);
+        showToast(`Error fetching statistics: ${error.message}`, false);
+      }
+    }
+
+    function updatePaginationControls(totalImages) {
+      const totalPages = Math.ceil(totalImages / imagesPerPage);
+      document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('prevPage').disabled = currentPage === 1;
+      document.getElementById('nextPage').disabled = currentPage === totalPages;
+    }
+
+    document.getElementById('prevPage').addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        fetchImageData(currentFilter);
+      }
+    });
+
+    document.getElementById('nextPage').addEventListener('click', () => {
+      // totalImages will be specific to the current filter type
+      let totalImagesForPagination = 0;
+      // This needs to be updated to reflect the total count for the *current filter type*
+      // The API response for /api/images now returns totalImages specific to the type
+      // So, we can use data.totalImages directly from the last fetchImageData call
+      // However, if we are on 'all' and want to paginate 'all', it's fine.
+      // If we are on 'duplicates' and want to paginate 'duplicates', it's fine.
+      // The issue is if we want to paginate across *all* images when on a specific tab.
+      // For now, let's assume totalImages from the last fetchImageData is correct for pagination.
+      // This might need refinement if pagination across *all* images is desired for specific tabs.
+      const lastFetchedData = window.lastFetchedImageData; // Assuming we store it globally or pass it
+      if (lastFetchedData) {
+        totalImagesForPagination = lastFetchedData.totalImages;
+      }
+
+      const totalPages = Math.ceil(totalImagesForPagination / imagesPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        fetchImageData(currentFilter);
+      }
+    });
+
+    // Initial setup when the DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      initCollapsible();
+      initFilters();
+      setupImagePreview();
+      fetchStats(); // Fetch and render stats once
+      showSection(currentFilter); // Show initial section
+      fetchImageData(currentFilter); // Fetch and render initial image data
+    });
   </script>
 </body>
 </html>
