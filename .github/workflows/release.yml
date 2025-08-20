@@ -87,12 +87,12 @@ jobs:
       - name: Build Go binary for Windows
         run: |
           cd go
-          GOOS=windows GOARCH=amd64 go build -o picpurge-windows-amd64.exe main.go
+          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o picpurge-windows-amd64.exe main.go
 
       - name: Build Go binary for macOS
         run: |
           cd go
-          GOOS=darwin GOARCH=amd64 go build -o picpurge-darwin-amd64 main.go
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o picpurge-darwin-amd64 main.go
 
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
