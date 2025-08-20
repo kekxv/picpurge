@@ -84,23 +84,11 @@ jobs:
           cd go
           GOOS=linux GOARCH=amd64 go build -o picpurge-linux-amd64 main.go
 
-      - name: Build Go binary for macOS
-        run: |
-          cd go
-          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o picpurge-darwin-amd64 main.go
-
       - name: Upload Linux Binary
         uses: actions/upload-artifact@v4
         with:
           name: picpurge-linux-amd64
           path: ./go/picpurge-linux-amd64
-          retention-days: 3
-
-      - name: Upload macOS Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: picpurge-darwin-amd64
-          path: ./go/picpurge-darwin-amd64
           retention-days: 3
 
   # Job 4: Build, publish, and create release
@@ -164,17 +152,6 @@ jobs:
           name: picpurge-linux-amd64
           path: ./go/
 
-      - name: Download macOS Binary
-        uses: actions/download-artifact@v5
-        with:
-          name: picpurge-darwin-amd64
-          path: ./go/
-
-      - name: Make binaries executable
-        run: |
-          chmod +x ./go/picpurge-linux-amd64
-          chmod +x ./go/picpurge-darwin-amd64
-
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
@@ -186,6 +163,5 @@ jobs:
           prerelease: false
           files: |
             ./go/picpurge-linux-amd64
-            ./go/picpurge-darwin-amd64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
