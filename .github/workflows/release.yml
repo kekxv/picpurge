@@ -8,6 +8,7 @@ on:
       - 'v*'
     paths:
       - 'package.json' # Only applies to pushes to branches
+      - '.github/workflows/release.yml'
 
 jobs:
   # Job 1: Test Go code
@@ -94,22 +95,25 @@ jobs:
           GOOS=darwin GOARCH=amd64 go build -o picpurge-darwin-amd64 main.go
 
       - name: Upload Linux Binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: picpurge-linux-amd64
           path: ./go/picpurge-linux-amd64
+          retention-days: 3
 
       - name: Upload Windows Binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: picpurge-windows-amd64.exe
           path: ./go/picpurge-windows-amd64.exe
+          retention-days: 3
 
       - name: Upload macOS Binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: picpurge-darwin-amd64
           path: ./go/picpurge-darwin-amd64
+          retention-days: 3
 
   # Job 4: Build, publish, and create release
   publish_release:
@@ -167,19 +171,19 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Download Linux Binary
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v5
         with:
           name: picpurge-linux-amd64
           path: ./go/
 
       - name: Download Windows Binary
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v5
         with:
           name: picpurge-windows-amd64.exe
           path: ./go/
 
       - name: Download macOS Binary
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v5
         with:
           name: picpurge-darwin-amd64
           path: ./go/
