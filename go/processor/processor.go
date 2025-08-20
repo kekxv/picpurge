@@ -6,11 +6,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"image"
+	"image/color"
+	"image/jpeg"
 	_ "image/jpeg" // Import for JPEG decoding
 	_ "image/png"  // Import for PNG decoding
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -51,33 +54,50 @@ func ProcessImage(filePath string) (*ImageData, []byte, error) {
 	}
 	md5Hash := hex.EncodeToString(hash.Sum(nil))
 
-	// --- Decode image and extract EXIF data ---
-	fileForImage, err := os.Open(filePath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open file for image processing: %w", err)
-	}
-	defer fileForImage.Close()
-
-	// Decode image to get dimensions and for thumbnail generation
-	img, _, err := image.Decode(fileForImage)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// Get file info for size and creation date (from file system)
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get file info: %w", err)
 	}
 
+	// Initialize imageData with basic info
 	imageData := &ImageData{
-		FilePath:    filePath,
-		FileName:    fileInfo.Name(),
-		FileSize:    fileInfo.Size(),
-		MD5:         md5Hash,
-		ImageWidth:  img.Bounds().Dx(),
-		ImageHeight: img.Bounds().Dy(),
-		CreateDate:  fileInfo.ModTime(), // Default to file modification time
+		FilePath:   filePath,
+		FileName:   fileInfo.Name(),
+		FileSize:   fileInfo.Size(),
+		MD5:        md5Hash,
+		CreateDate: fileInfo.ModTime(), // Default to file modification time
+	}
+
+	// --- Try to decode image ---
+	fileForImage, err := os.Open(filePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open file for image processing: %w", err)
+	}
+	defer fileForImage.Close()
+
+	var img image.Image
+	ext := strings.ToLower(filepath.Ext(filePath))
+
+	// For RAW formats like CR2, we won't be able to decode them with standard library
+	// but we can still extract EXIF data
+	if ext == ".cr2" {
+		// For CR2 files, we can't decode them with standard library
+		// Set default dimensions and skip thumbnail generation
+		imageData.ImageWidth = 0
+		imageData.ImageHeight = 0
+	} else {
+		// Decode image to get dimensions and for thumbnail generation
+		img, _, err = image.Decode(fileForImage)
+		if err != nil {
+			// For unsupported formats, we'll still process EXIF data but skip image processing
+			log.Printf("Warning: Could not decode image %s: %v. Proceeding with EXIF extraction only.\n", filePath, err)
+			imageData.ImageWidth = 0
+			imageData.ImageHeight = 0
+		} else {
+			imageData.ImageWidth = img.Bounds().Dx()
+			imageData.ImageHeight = img.Bounds().Dy()
+		}
 	}
 
 	// Reset fileForImage pointer to read EXIF data from the beginning
@@ -120,30 +140,99 @@ func ProcessImage(filePath string) (*ImageData, []byte, error) {
 		// log.Printf("Warning: No EXIF data found or error decoding EXIF for %s: %v\n", filePath, err)
 	}
 
-	// --- Calculate pHash ---
-	phash, err := goimagehash.PerceptionHash(img)
-	if err != nil {
-		log.Printf("Warning: Could not calculate pHash for %s: %v\n", filePath, err)
-		imageData.PHash = "" // Set to empty string if pHash calculation fails
+	// --- Calculate pHash (only for supported image formats) ---
+	if img != nil {
+		phash, err := goimagehash.PerceptionHash(img)
+		if err != nil {
+			log.Printf("Warning: Could not calculate pHash for %s: %v\n", filePath, err)
+			imageData.PHash = "" // Set to empty string if pHash calculation fails
+		} else {
+			imageData.PHash = phash.ToString() // Convert hash to string
+		}
 	} else {
-		imageData.PHash = phash.ToString() // Convert hash to string
+		imageData.PHash = ""
 	}
 
 	// --- Generate Thumbnail (WebP) ---
-	// Resize the image to 320x320 (or smaller if original is smaller)
-	thumbnail := resize.Thumbnail(320, 320, img, resize.Lanczos3)
-
-	// Encode thumbnail to WebP
-	var buf bytes.Buffer
 	var thumbnailData []byte
-	if err := webp.Encode(&buf, thumbnail, &webp.Options{Lossless: false, Quality: 80}); err != nil { // Encode to WebP
-		log.Printf("Warning: Could not generate WebP thumbnail for %s: %v\n", filePath, err)
-		thumbnailData = nil // Set to nil if encoding fails
+	if img != nil {
+		// Resize the image to 320x320 (or smaller if original is smaller)
+		thumbnail := resize.Thumbnail(320, 320, img, resize.Lanczos3)
+
+		// Encode thumbnail to WebP
+		var buf bytes.Buffer
+		if err := webp.Encode(&buf, thumbnail, &webp.Options{Lossless: false, Quality: 80}); err != nil { // Encode to WebP
+			log.Printf("Warning: Could not generate WebP thumbnail for %s: %v\n", filePath, err)
+			thumbnailData = nil // Set to nil if encoding fails
+		} else {
+			thumbnailData = buf.Bytes()
+			// Set ThumbnailPath to a reference, e.g., "memory://<MD5>"
+			imageData.ThumbnailPath = fmt.Sprintf("memory://%s", imageData.MD5)
+		}
+	} else if ext == ".cr2" && x != nil {
+		// For CR2 files, try to extract embedded thumbnail from EXIF
+		thumbnailData = extractEXIFThumbnail(x, filePath)
+		if thumbnailData != nil {
+			// Convert JPEG thumbnail to WebP
+			thumbnailImg, err := jpeg.Decode(bytes.NewReader(thumbnailData))
+			if err == nil {
+				// Resize the thumbnail to 320x320
+				resizedThumb := resize.Thumbnail(320, 320, thumbnailImg, resize.Lanczos3)
+
+				// Encode to WebP
+				var webpBuf bytes.Buffer
+				if err := webp.Encode(&webpBuf, resizedThumb, &webp.Options{Lossless: false, Quality: 80}); err == nil {
+					thumbnailData = webpBuf.Bytes()
+					imageData.ThumbnailPath = fmt.Sprintf("memory://%s", imageData.MD5)
+				} else {
+					log.Printf("Warning: Could not encode CR2 thumbnail to WebP for %s: %v\n", filePath, err)
+				}
+			} else {
+				log.Printf("Warning: Could not decode CR2 thumbnail for %s: %v\n", filePath, err)
+			}
+		} else {
+			// Generate a placeholder thumbnail for CR2 files
+			thumbnailData = generatePlaceholderThumbnail(320, 320)
+			imageData.ThumbnailPath = fmt.Sprintf("memory://%s", imageData.MD5)
+		}
 	} else {
-		thumbnailData = buf.Bytes()
-		// Set ThumbnailPath to a reference, e.g., "memory://<MD5>"
-		imageData.ThumbnailPath = fmt.Sprintf("memory://%s", imageData.MD5)
+		thumbnailData = nil
+		imageData.ThumbnailPath = ""
 	}
 
 	return imageData, thumbnailData, nil
+}
+
+// extractEXIFThumbnail extracts thumbnail from EXIF data if available
+func extractEXIFThumbnail(x *exif.Exif, filePath string) []byte {
+	thumb, err := x.JpegThumbnail()
+	if err != nil {
+		log.Printf("No JPEG thumbnail in EXIF for %s: %v\n", filePath, err)
+		return nil
+	}
+	return thumb
+}
+
+// generatePlaceholderThumbnail generates a placeholder thumbnail for RAW files
+func generatePlaceholderThumbnail(width, height int) []byte {
+	// Create a simple placeholder image
+	upLeft := image.Point{0, 0}
+	lowRight := image.Point{width, height}
+	img := image.NewRGBA(image.Rectangle{upLeft, lowRight})
+
+	// Fill with a light gray background
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, color.RGBA{200, 200, 200, 255})
+		}
+	}
+
+	// Encode to WebP
+	var buf bytes.Buffer
+	if err := webp.Encode(&buf, img, &webp.Options{Lossless: false, Quality: 80}); err != nil {
+		log.Printf("Warning: Could not encode placeholder thumbnail: %v\n", err)
+		return nil
+	}
+
+	return buf.Bytes()
 }

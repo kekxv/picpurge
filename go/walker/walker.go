@@ -15,8 +15,24 @@ var imageExtensions = map[string]bool{
 	".bmp":  true,
 	".gif":  true,
 	".tiff": true,
+	".tif":  true,
 	".webp": true,
 	".cr2":  true,
+	".nef":  true, // Nikon RAW
+	".arw":  true, // Sony RAW
+	".dng":  true, // Adobe DNG
+	".orf":  true, // Olympus RAW
+	".rw2":  true, // Panasonic RAW
+	".pef":  true, // Pentax RAW
+	".sr2":  true, // Sony RAW
+	".raf":  true, // Fuji RAW
+	".3fr":  true, // Hasselblad RAW
+	".fff":  true, // Imacon RAW
+	".mos":  true, // Leaf RAW
+	".iiq":  true, // Phase One RAW
+	".mef":  true, // Mamiya RAW
+	".mrw":  true, // Minolta RAW
+	".x3f":  true, // Sigma RAW
 }
 
 // IsImageFile checks if a given file path has a supported image extension.

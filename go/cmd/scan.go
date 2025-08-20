@@ -95,7 +95,7 @@ var scanCmd = &cobra.Command{
 				for filePath := range jobs {
 					imageData, thumbnailData, err := processor.ProcessImage(filePath)
 					if err != nil {
-						//errors <- fmt.Errorf("error processing image '%s': %w", filePath, err)
+						errors <- fmt.Errorf("error processing image '%s': %w", filePath, err)
 						bar.Add(1)
 						continue
 					}
@@ -232,7 +232,10 @@ func init() {
 func runFindDuplicates(autoRecycleDuplicates bool, recyclePath string) error {
 	log.Println("Finding duplicate images...")
 
-	db := database.GetDb()
+	db, err := database.GetDBInstance()
+	if err != nil {
+		return fmt.Errorf("failed to get database instance: %w", err)
+	}
 
 	rows, err := db.Query("SELECT md5 FROM images GROUP BY md5 HAVING COUNT(*) > 1")
 	if err != nil {
@@ -335,7 +338,10 @@ func runFindDuplicates(autoRecycleDuplicates bool, recyclePath string) error {
 func runFindSimilarImages() error {
 	log.Println("Finding similar images...")
 
-	db := database.GetDb()
+	db, err := database.GetDBInstance()
+	if err != nil {
+		return fmt.Errorf("failed to get database instance: %w", err)
+	}
 
 	// Fetch all images with pHash values
 	rows, err := db.Query("SELECT id, phash, image_width, image_height FROM images WHERE phash IS NOT NULL AND phash != '' AND is_recycled = FALSE")
@@ -445,7 +451,10 @@ func runSortImages(rootPath string, destinationPath string) error {
 		log.Println("Images will be moved within the root path.")
 	}
 
-	db := database.GetDb()
+	db, err := database.GetDBInstance()
+	if err != nil {
+		return fmt.Errorf("failed to get database instance: %w", err)
+	}
 	rows, err := db.Query("SELECT id, file_path, create_date FROM images WHERE is_duplicate = FALSE AND is_recycled = FALSE ORDER BY id ASC")
 	if err != nil {
 		return fmt.Errorf("error querying images for sorting: %w", err)
@@ -476,7 +485,12 @@ func runSortImages(rootPath string, destinationPath string) error {
 		}
 
 		newBaseDir := filepath.Join(targetBaseDir, year, month)
-		newFileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), createDate.Format("20060102150405"))
+
+		// Get the file extension
+		ext := filepath.Ext(filePath)
+
+		// Generate the new file name in the correct format
+		newFileName := fmt.Sprintf("%s.%06d%s", createDate.Format("20060102150405"), id, ext)
 		newPath := filepath.Join(newBaseDir, newFileName)
 
 		if err := os.MkdirAll(newBaseDir, 0755); err != nil {
@@ -489,7 +503,7 @@ func runSortImages(rootPath string, destinationPath string) error {
 				log.Printf("Error copying file from %s to %s: %v\n", filePath, newPath, err)
 				continue
 			}
-			log.Printf("Copied %s to %s\n", filepath.Base(filePath), newPath)
+			log.Printf("Copied %s to %s\n", filePath, newPath)
 		} else {
 			if err := os.Rename(filePath, newPath); err != nil {
 				if copyErr := util.CopyFile(filePath, newPath); copyErr != nil {
@@ -499,9 +513,9 @@ func runSortImages(rootPath string, destinationPath string) error {
 				if removeErr := os.Remove(filePath); removeErr != nil {
 					log.Printf("Warning: Copied %s to %s, but failed to remove original: %v\n", filePath, newPath, removeErr)
 				}
-				log.Printf("Moved %s to %s (via copy/delete)\n", filepath.Base(filePath), newPath)
+				log.Printf("Moved %s to %s (via copy/delete)\n", filePath, newPath)
 			} else {
-				log.Printf("Moved %s to %s\n", filepath.Base(filePath), newPath)
+				log.Printf("Moved %s to %s\n", filePath, newPath)
 			}
 			_, err := db.Exec("UPDATE images SET file_path = ? WHERE id = ?", newPath, id)
 			if err != nil {

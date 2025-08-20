@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"log"
 	"os"
@@ -9,9 +10,12 @@ import (
 	"picpurge/database"
 )
 
+//go:embed server/web/*
+var webFiles embed.FS
+
 func main() {
-	// Connect to the database
-	err := database.ConnectDb()
+	// Connect to the database (and initialize if not already)
+	_, err := database.GetDBInstance()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Failed to connect to database: %v\n", err)
 		os.Exit(1)
