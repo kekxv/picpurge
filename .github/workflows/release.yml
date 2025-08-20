@@ -84,11 +84,6 @@ jobs:
           cd go
           GOOS=linux GOARCH=amd64 go build -o picpurge-linux-amd64 main.go
 
-      - name: Build Go binary for Windows
-        run: |
-          cd go
-          CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o picpurge-windows-amd64.exe main.go
-
       - name: Build Go binary for macOS
         run: |
           cd go
@@ -99,13 +94,6 @@ jobs:
         with:
           name: picpurge-linux-amd64
           path: ./go/picpurge-linux-amd64
-          retention-days: 3
-
-      - name: Upload Windows Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: picpurge-windows-amd64.exe
-          path: ./go/picpurge-windows-amd64.exe
           retention-days: 3
 
       - name: Upload macOS Binary
@@ -176,12 +164,6 @@ jobs:
           name: picpurge-linux-amd64
           path: ./go/
 
-      - name: Download Windows Binary
-        uses: actions/download-artifact@v5
-        with:
-          name: picpurge-windows-amd64.exe
-          path: ./go/
-
       - name: Download macOS Binary
         uses: actions/download-artifact@v5
         with:
@@ -204,7 +186,6 @@ jobs:
           prerelease: false
           files: |
             ./go/picpurge-linux-amd64
-            ./go/picpurge-windows-amd64.exe
             ./go/picpurge-darwin-amd64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
